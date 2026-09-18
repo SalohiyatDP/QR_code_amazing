@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QR Amazing — rasmni QR-ga o'xshash ulushlarga bo'lish</title>
+<!-- Bitta faylli versiya: node build.mjs orqali yig'ilgan -->
+<style>
+:root {
+  --bg: #0e1116;
+  --panel: #161b22;
+  --panel2: #1c232c;
+  --line: #2a323d;
+  --text: #e6edf3;
+  --muted: #9aa7b4;
+  --accent: #4ea1ff;
+  --accent2: #2f81f7;
+  --warn: #ffb638;
+  --ok: #3fb950;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.top {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 18px clamp(14px, 3vw, 32px);
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #131923, #0e1116);
+  flex-wrap: wrap;
+}
+.brand { display: flex; gap: 14px; align-items: flex-start; }
+.logo {
+  width: 40px; height: 40px; flex: none; border-radius: 8px;
+  background-color: #fff;
+  background-image:
+    linear-gradient(90deg, #000 25%, transparent 25% 50%, #000 50% 62.5%, transparent 62.5% 75%, #000 75%),
+    linear-gradient(0deg, #000 12.5%, transparent 12.5% 37.5%, #000 37.5% 50%, transparent 50% 75%, #000 75%);
+  background-size: 16px 16px;
+}
+h1 { margin: 0; font-size: 20px; letter-spacing: .2px; }
+.top p { margin: 4px 0 0; color: var(--muted); font-size: 13.5px; max-width: 70ch; }
+.help-link { color: var(--accent); text-decoration: none; font-size: 14px; white-space: nowrap; }
+.help-link:hover { text-decoration: underline; }
+
+main {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) 1fr;
+  gap: 18px;
+  padding: 18px clamp(14px, 3vw, 32px);
+  align-items: start;
+}
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+}
+.panel h2 {
+  font-size: 12.5px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--muted); margin: 18px 0 8px; font-weight: 600;
+}
+.panel h2:first-child { margin-top: 0; }
+.panel h3 { font-size: 14.5px; margin: 20px 0 8px; }
+.muted { color: var(--muted); }
+.small { font-size: 12.5px; }
+
+/* ------------------------------- kiritish ------------------------------- */
+.drop {
+  border: 1.5px dashed #39424f; border-radius: 10px;
+  background: var(--panel2);
+  min-height: 116px; display: grid; place-items: center;
+  cursor: pointer; text-align: center; padding: 14px; position: relative;
+  transition: border-color .15s, background .15s;
+}
+.drop:hover, .drop:focus-visible, .drop.over { border-color: var(--accent); background: #1b2531; outline: none; }
+.drop-inner { display: grid; gap: 3px; }
+.drop-inner strong { font-size: 14px; }
+.drop-inner span { color: var(--muted); font-size: 12.5px; }
+.drop img { max-width: 100%; max-height: 190px; border-radius: 6px; display: block; }
+.drop.has-image .drop-inner { display: none; }
+
+label.row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin: 7px 0; font-size: 13.5px;
+}
+label.row > span { color: var(--text); }
+label.row.range { display: grid; gap: 5px; }
+label.check { display: flex; gap: 8px; align-items: center; font-size: 13.5px; margin: 8px 0; }
+
+select, input[type="number"] {
+  background: #0d1117; color: var(--text);
+  border: 1px solid var(--line); border-radius: 7px;
+  padding: 6px 8px; font: inherit; font-size: 13px; max-width: 62%;
+}
+input[type="number"] { width: 80px; }
+select { cursor: pointer; }
+input[type="range"] { width: 100%; accent-color: var(--accent2); }
+output { color: var(--accent); font-variant-numeric: tabular-nums; }
+
+details { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 10px; }
+summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+summary:hover { color: var(--text); }
+
+.actions { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+button {
+  background: var(--panel2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 9px 14px; font: inherit; font-size: 13.5px; cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: #4a5566; background: #222c38; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.primary { background: var(--accent2); border-color: var(--accent2); color: #fff; font-weight: 600; }
+button.primary:hover:not(:disabled) { background: #4e95f5; border-color: #4e95f5; }
+
+.status { min-height: 20px; margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+.status.busy { color: var(--accent); }
+.status.err { color: #ff7b72; }
+
+/* ------------------------------- natijalar ------------------------------ */
+.results { min-height: 260px; }
+.empty { display: grid; place-items: center; min-height: 240px; color: var(--muted); }
+.out-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.out-head h2 { margin: 0; }
+.dl { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.warnings {
+  border: 1px solid #5a4620; background: #241d10; color: var(--warn);
+  border-radius: 8px; padding: 10px 12px; margin: 12px 0; font-size: 13px;
+}
+.warnings ul { margin: 0; padding-left: 18px; }
+
+.info {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px; margin: 14px 0 4px;
+}
+.info div {
+  background: var(--panel2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px;
+}
+.info dt { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; }
+.info dd { margin: 2px 0 0; font-size: 14px; font-variant-numeric: tabular-nums; }
+
+.sim, .shares { display: grid; gap: 12px; }
+.sim { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.shares { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+figure { margin: 0; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 8px; }
+figcaption { color: var(--muted); font-size: 12px; margin-top: 6px; text-align: center; }
+canvas {
+  display: block; width: 100%; height: auto;
+  image-rendering: pixelated;
+  background: #000; border-radius: 6px;
+}
+figure.share canvas { background: #fff; }
+figure .cap-row { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-top: 6px; }
+figure .cap-row button { padding: 4px 8px; font-size: 12px; }
+
+.howto { border-top: 1px solid var(--line); margin-top: 26px; padding-top: 6px; }
+.howto ol { padding-left: 20px; font-size: 13.5px; color: #cbd5e1; }
+.howto li { margin: 5px 0; }
+
+.foot {
+  padding: 14px clamp(14px, 3vw, 32px) 28px;
+  color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--line);
+}
+
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"></span>
+    <div>
+      <h1>QR Amazing</h1>
+      <p>Rasmni <b>n ta QR-ga o'xshash ulushga</b> bo'ladi. Bitta varaqqa bosiladi, o'rtasidan yirtiladi,
+         bo'laklar burchaklari bo'yicha ustma-ust qo'yiladi va orqadan chiroq yoqilsa — rasm ko'rinadi.</p>
+    </div>
+  </div>
+  <a class="help-link" href="#howto">Qanday ishlaydi?</a>
+</header>
+
+<main>
+  <!-- ============================ Sozlamalar ============================ -->
+  <section class="panel controls">
+    <h2>1. Rasm</h2>
+    <div id="drop" class="drop" tabindex="0">
+      <input type="file" id="file" accept="image/jpeg,image/png,image/bmp,.jpg,.jpeg,.png,.bmp" hidden>
+      <div class="drop-inner">
+        <strong>Rasmni bu yerga tashlang</strong>
+        <span>yoki bosib tanlang — JPG, PNG, BMP</span>
+      </div>
+      <img id="thumb" alt="" hidden>
+    </div>
+    <p id="fileInfo" class="muted small"></p>
+
+    <h2>2. Ulushlar soni</h2>
+    <label class="row">
+      <span>Nechta bo'lakka bo'linadi (n)</span>
+      <select id="n">
+        <option value="2" selected>2 — kontrast 1/2 (eng yaxshi)</option>
+        <option value="3">3 — kontrast 1/4</option>
+        <option value="4">4 — kontrast 1/8</option>
+        <option value="5">5 — kontrast 1/16 (xira)</option>
+        <option value="6">6 — kontrast 1/32 (juda xira)</option>
+        <option value="7">7 — kontrast 1/64 (amaliy emas)</option>
+        <option value="8">8 — kontrast 1/128 (amaliy emas)</option>
+      </select>
+    </label>
+    <p class="muted small">Rasmni faqat <b>hamma</b> ulush birga ko'rsatadi. Bittasi kam bo'lsa — hech narsa ko'rinmaydi.</p>
+
+    <h2>3. Qog'oz</h2>
+    <label class="row"><span>Format</span><select id="paper"></select></label>
+    <label class="row"><span>Yo'nalish</span>
+      <select id="orientation">
+        <option value="portrait" selected>Bo'yiga (portret)</option>
+        <option value="landscape">Eniga (albom)</option>
+      </select>
+    </label>
+    <label class="row"><span>Joylashuv</span>
+      <select id="mode">
+        <option value="sheet" selected>Hammasi bitta varaqda (yirtib ishlatiladi)</option>
+        <option value="pages">Har bir ulush alohida varaqda (kattaroq)</option>
+      </select>
+    </label>
+
+    <h2>4. Aniqlik</h2>
+    <label class="row range">
+      <span>Modul o'lchami: <output id="moduleOut">0.50</output> mm</span>
+      <input type="range" id="module" min="0.15" max="1.5" step="0.05" value="0.5">
+    </label>
+    <p class="muted small">Katta modul — qo'lda moslash oson, lekin rasm dag'al. Kichik modul — nozik rasm,
+       lekin bo'laklarni juda aniq ustma-ust qo'yish kerak.</p>
+
+    <details>
+      <summary>Qo'shimcha sozlamalar</summary>
+      <label class="row"><span>Chegara (margin), mm</span><input type="number" id="margin" value="8" min="0" max="30" step="1"></label>
+      <label class="row"><span>Yirtish yo'lagi, mm</span><input type="number" id="gutter" value="8" min="0" max="30" step="1"></label>
+      <label class="row"><span>Binarizatsiya</span>
+        <select id="dither">
+          <option value="fs" selected>Floyd–Steinberg (fotolar uchun)</option>
+          <option value="atkinson">Atkinson (kontrastli)</option>
+          <option value="bayer">Bayer (naqshli)</option>
+          <option value="threshold">Oddiy chegara (logotip/matn uchun)</option>
+        </select>
+      </label>
+      <label class="row range"><span>Yorqinlik: <output id="brightOut">0</output></span>
+        <input type="range" id="bright" min="-0.5" max="0.5" step="0.02" value="0"></label>
+      <label class="row range"><span>Kontrast: <output id="contrastOut">0</output></span>
+        <input type="range" id="contrast" min="-0.8" max="0.8" step="0.02" value="0"></label>
+      <label class="row range"><span>Gamma: <output id="gammaOut">1.0</output></span>
+        <input type="range" id="gamma" min="0.4" max="2.5" step="0.05" value="1"></label>
+      <label class="check"><input type="checkbox" id="autoLevels" checked> Avto-darajalar (auto levels)</label>
+      <label class="check"><input type="checkbox" id="invert"> Ranglarni teskari qilish</label>
+    </details>
+
+    <div class="actions">
+      <button id="generate" class="primary" disabled>Ulushlarni yaratish</button>
+      <button id="reshuffle" disabled title="Boshqa tasodifiy naqsh bilan qayta yaratish">Qayta aralashtirish</button>
+    </div>
+    <p id="status" class="status" role="status"></p>
+  </section>
+
+  <!-- ============================= Natijalar ============================ -->
+  <section class="panel results">
+    <div id="empty" class="empty">
+      <p>Rasm yuklab, <b>“Ulushlarni yaratish”</b> tugmasini bosing.</p>
+    </div>
+
+    <div id="output" hidden>
+      <div class="out-head">
+        <h2>Natija</h2>
+        <div class="dl">
+          <button id="pdf" class="primary">PDF yuklab olish</button>
+          <button id="print">Chop etish</button>
+          <button id="zipless">Ulushlarni PNG qilib saqlash</button>
+        </div>
+      </div>
+
+      <div id="warnings" class="warnings" hidden></div>
+      <dl id="info" class="info"></dl>
+
+      <h3>Ustma-ust qo'yilganda shunday ko'rinadi</h3>
+      <div class="sim">
+        <figure>
+          <canvas id="simReal"></canvas>
+          <figcaption>Haqiqiy yorug'lik (chiroq orqadan)</figcaption>
+        </figure>
+        <figure>
+          <canvas id="simNorm"></canvas>
+          <figcaption>Kuchaytirilgan (ko'z bilan tekshirish uchun)</figcaption>
+        </figure>
+        <figure>
+          <canvas id="simSource"></canvas>
+          <figcaption>Manba (binarizatsiyadan keyin)</figcaption>
+        </figure>
+      </div>
+
+      <h3>Ulushlar <span class="muted small">— har biri alohida ma'nosiz shovqin</span></h3>
+      <div id="shares" class="shares"></div>
+
+      <div class="howto" id="howto">
+        <h3>Chop etish va ishlatish</h3>
+        <ol>
+          <li><b>PDF</b> ni yuklab oling va PDF ko'ruvchidan chop eting.</li>
+          <li>Printer sozlamasida masshtab <b>100% / “Actual size”</b> bo'lsin —
+              “Fit to page” yoki “Shrink to fit” <b>o'chirilgan</b> bo'lishi shart, aks holda o'lchamlar buziladi.</li>
+          <li>Iloji bo'lsa lazer printer va zich (80–100 g/m²) qog'oz ishlating; siyoh yoyilmasligi kerak.</li>
+          <li>Punktir chiziq bo'ylab yirtib (yoki kesib) bo'laklarni ajratasiz.</li>
+          <li>Bo'laklarni <b>ramka va burchak belgilari aynan ustma-ust</b> tushadigan qilib joylashtiring.
+              1 modul chamasi siljish ham rasmni yo'q qiladi.</li>
+          <li>Orqadan chiroq (telefon fonari, deraza yorug'ligi) yoqing — rasm ko'rinadi.</li>
+        </ol>
+        <p class="muted small">
+          Maslahat: eng yaxshi natija uchun ulushlarni <b>shaffof plyonkaga</b> (overhead/transparency film) bossangiz,
+          rasm chiroqsiz ham ko'rinadi. Oddiy qog'ozda albatta orqadan yorug'lik kerak.
+        </p>
+        <h3>Nima uchun ishlaydi?</h3>
+        <p class="muted small">
+          Bu — <b>vizual kriptografiya</b> (Naor–Shamir, 1994). Rasmning har bir pikseli
+          m = 2<sup>n-1</sup> ta kichik modulga bo'linadi. Har bir ulushda shu modullarning yarmi qora bo'ladi,
+          shuning uchun bitta ulush tasodifiy shovqindan farq qilmaydi. Ulushlar ustma-ust qo'yilganda
+          qora modullar birlashadi: <b>qora piksel</b> joyida yorug'lik butunlay to'siladi,
+          <b>oq piksel</b> joyida esa aynan bitta modul shaffof qoladi. Natijada rasm
+          1/m kontrast bilan ko'rinadi — shuning uchun n kichik bo'lsa natija yorqinroq.
+        </p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <span>Hammasi brauzerda ishlaydi — rasm hech qayerga yuborilmaydi.</span>
+</footer>
+
+<script>
+/* ===== src/vc.js ===== */
+/**
+ * (n, n) Visual Cryptography — Naor & Shamir konstruksiyasi.
+ *
+ * Har bir manba pikseli m = 2^(n-1) ta "subpiksel" (modul) blokiga kengayadi.
+ * Konvensiya: 1 = siyoh (qora, yorug'likni to'sadi), 0 = bo'sh (oq, yorug'lik o'tadi).
+ *
+ * Ustma-ust qo'yish (stacking) = modul bo'yicha OR amali:
+ *   - qora piksel  -> blokdagi hamma modul to'silgan   (0/m yorug'lik)
+ *   - oq piksel    -> blokda aynan 1 ta modul shaffof  (1/m yorug'lik)
+ * Ya'ni kontrast = 1/m. n ortgani sayin natija qorayadi.
+ *
+ * Xavfsizlik: har bir ulushning har bir blokida aynan m/2 ta siyoh moduli bo'ladi
+ * (piksel qora yoki oq bo'lishidan qat'i nazar), shuning uchun bitta ulush
+ * statistik jihatdan tasodifiy shovqindan farq qilmaydi.
+ */
+
+/** Bir piksel uchun subpiksel (modul) soni. */
+function subpixelCount(n) {
+  return 1 << (n - 1);
+}
+
+/** m ta subpikselni imkon qadar kvadratga yaqin blokka joylash. */
+function blockShape(m) {
+  let rows = 1;
+  for (let r = 1; r * r <= m; r++) {
+    if (m % r === 0) rows = r;
+  }
+  return { rows, cols: m / rows };
+}
+
+/** Uzunligi n bo'lgan, juft (parity=0) yoki toq (parity=1) vaznli bit-vektorlar. */
+function weightVectors(n, parity) {
+  const out = [];
+  for (let v = 0; v < 1 << n; v++) {
+    let bits = 0;
+    for (let i = 0; i < n; i++) bits += (v >> i) & 1;
+    if ((bits & 1) === parity) out.push(v);
+  }
+  return Uint32Array.from(out);
+}
+
+/** Takrorlanadigan natija uchun oddiy PRNG (mulberry32). */
+function makeRng(seed) {
+  let a = (seed >>> 0) || 0x9e3779b9;
+  return function () {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Binar tasvirni n ta ulushga bo'ladi.
+ *
+ * @param {Uint8Array} bin  w*h uzunlikdagi massiv, 1 = qora piksel
+ * @param {number} w        piksel bo'yicha kenglik
+ * @param {number} h        piksel bo'yicha balandlik
+ * @param {number} n        ulushlar soni (>= 2)
+ * @param {() => number} rng
+ * @returns {{shares: Uint8Array[], width: number, height: number,
+ *            blockRows: number, blockCols: number, m: number,
+ *            pixelW: number, pixelH: number}}
+ *          shares[i] — modul bo'yicha width*height massiv, 1 = siyoh
+ */
+function encodeShares(bin, w, h, n, rng = Math.random) {
+  if (!Number.isInteger(n) || n < 2) throw new Error('n kamida 2 bo\'lishi kerak');
+  if (n > 10) throw new Error('n juda katta (maksimum 10)');
+  if (bin.length < w * h) throw new Error('binar tasvir o\'lchami mos emas');
+
+  const m = subpixelCount(n);
+  const { rows: br, cols: bc } = blockShape(m);
+  const even = weightVectors(n, 0);
+  const odd = weightVectors(n, 1);
+
+  const W = w * bc;
+  const H = h * br;
+  const shares = [];
+  for (let i = 0; i < n; i++) shares.push(new Uint8Array(W * H));
+
+  const vec = new Uint32Array(m);
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      // Qora piksel -> toq vaznli ustunlar, oq piksel -> juft vaznli ustunlar.
+      vec.set(bin[y * w + x] ? odd : even);
+      // Ustunlarni har bir piksel uchun mustaqil ravishda aralashtiramiz.
+      for (let j = m - 1; j > 0; j--) {
+        const k = (rng() * (j + 1)) | 0;
+        const t = vec[j];
+        vec[j] = vec[k];
+        vec[k] = t;
+      }
+      const baseY = y * br;
+      const baseX = x * bc;
+      for (let j = 0; j < m; j++) {
+        const idx = (baseY + ((j / bc) | 0)) * W + baseX + (j % bc);
+        const v = vec[j];
+        for (let i = 0; i < n; i++) shares[i][idx] = (v >> i) & 1;
+      }
+    }
+  }
+
+  return { shares, width: W, height: H, blockRows: br, blockCols: bc, m, pixelW: w, pixelH: h };
+}
+
+/** Ulushlarni ustma-ust qo'yish: modul bo'yicha OR (1 = to'silgan). */
+function stackShares(shares, width, height) {
+  const out = new Uint8Array(width * height);
+  for (const s of shares) {
+    for (let i = 0; i < out.length; i++) if (s[i]) out[i] = 1;
+  }
+  return out;
+}
+
+/**
+ * Chiroq orqasidan ko'rilgan natijani piksel aniqligida simulyatsiya qiladi:
+ * har bir blok uchun o'tgan yorug'lik ulushi [0..1].
+ */
+function simulateStack(shares, geom) {
+  const { width, height, blockRows: br, blockCols: bc, m, pixelW, pixelH } = geom;
+  const stacked = stackShares(shares, width, height);
+  const out = new Float32Array(pixelW * pixelH);
+  for (let y = 0; y < pixelH; y++) {
+    for (let x = 0; x < pixelW; x++) {
+      let open = 0;
+      for (let j = 0; j < m; j++) {
+        const idx = (y * br + ((j / bc) | 0)) * width + x * bc + (j % bc);
+        if (!stacked[idx]) open++;
+      }
+      out[y * pixelW + x] = open / m;
+    }
+  }
+  return out;
+}
+
+/* ===== src/image.js ===== */
+/**
+ * Rasmni tayyorlash: RGBA -> kulrang -> o'lchamni o'zgartirish -> tuzatish -> binarizatsiya.
+ * Hamma funksiyalar sof JS (brauzer ham, Node ham ishlatadi).
+ * Kulranglik konvensiyasi: 0 = qora, 1 = oq.
+ */
+
+/** RGBA baytlardan yorqinlik (luma) massivi. Shaffof piksellar oq fonga qo'yiladi. */
+function rgbaToLuma(rgba, w, h) {
+  const out = new Float32Array(w * h);
+  for (let i = 0, p = 0; i < out.length; i++, p += 4) {
+    const a = rgba[p + 3] / 255;
+    const r = rgba[p] / 255, g = rgba[p + 1] / 255, b = rgba[p + 2] / 255;
+    // sRGB luma + oq fon bilan alpha-kompozit
+    const y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    out[i] = y * a + (1 - a);
+  }
+  return out;
+}
+
+/** Box-filter bilan o'lchamni o'zgartirish (kichraytirishda aliasing bo'lmaydi). */
+function resample(src, sw, sh, dw, dh) {
+  const out = new Float32Array(dw * dh);
+  const xr = sw / dw, yr = sh / dh;
+  for (let y = 0; y < dh; y++) {
+    const y0 = y * yr, y1 = (y + 1) * yr;
+    const iy0 = Math.floor(y0), iy1 = Math.min(sh, Math.ceil(y1));
+    for (let x = 0; x < dw; x++) {
+      const x0 = x * xr, x1 = (x + 1) * xr;
+      const ix0 = Math.floor(x0), ix1 = Math.min(sw, Math.ceil(x1));
+      let sum = 0, wsum = 0;
+      for (let sy = iy0; sy < iy1; sy++) {
+        const wy = Math.min(y1, sy + 1) - Math.max(y0, sy);
+        if (wy <= 0) continue;
+        for (let sx = ix0; sx < ix1; sx++) {
+          const wx = Math.min(x1, sx + 1) - Math.max(x0, sx);
+          if (wx <= 0) continue;
+          const wgt = wx * wy;
+          sum += src[sy * sw + sx] * wgt;
+          wsum += wgt;
+        }
+      }
+      out[y * dw + x] = wsum > 0 ? sum / wsum : 1;
+    }
+  }
+  return out;
+}
+
+/**
+ * Yorqinlik/kontrast/gamma/invert va ixtiyoriy "auto-levels".
+ * brightness: -1..1, contrast: -1..1, gamma: 0.2..5
+ */
+function adjust(lum, { brightness = 0, contrast = 0, gamma = 1, invert = false, autoLevels = false } = {}) {
+  const out = new Float32Array(lum.length);
+  let lo = 0, hi = 1;
+  if (autoLevels) {
+    lo = 1; hi = 0;
+    for (const v of lum) { if (v < lo) lo = v; if (v > hi) hi = v; }
+    if (hi - lo < 1e-3) { lo = 0; hi = 1; }
+  }
+  const c = Math.tan(((Math.min(0.999, Math.max(-0.999, contrast)) + 1) * Math.PI) / 4); // 0..inf, 1 = neytral
+  for (let i = 0; i < lum.length; i++) {
+    let v = (lum[i] - lo) / (hi - lo);
+    v = Math.min(1, Math.max(0, v));
+    v = v + brightness;
+    v = (v - 0.5) * c + 0.5;
+    v = Math.min(1, Math.max(0, v));
+    if (gamma !== 1) v = Math.pow(v, 1 / gamma);
+    if (invert) v = 1 - v;
+    out[i] = Math.min(1, Math.max(0, v));
+  }
+  return out;
+}
+
+const BAYER8 = (() => {
+  // 8x8 Bayer matritsasi
+  const m = [[0]];
+  let size = 1;
+  let cur = m;
+  while (size < 8) {
+    const next = [];
+    for (let y = 0; y < size * 2; y++) next.push(new Array(size * 2).fill(0));
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const v = cur[y][x] * 4;
+        next[y][x] = v;
+        next[y][x + size] = v + 2;
+        next[y + size][x] = v + 3;
+        next[y + size][x + size] = v + 1;
+      }
+    }
+    cur = next;
+    size *= 2;
+  }
+  const out = new Float32Array(64);
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) out[y * 8 + x] = (cur[y][x] + 0.5) / 64;
+  return out;
+})();
+
+/**
+ * Binarizatsiya. Natija: Uint8Array, 1 = qora (siyoh).
+ * method: 'fs' | 'atkinson' | 'bayer' | 'threshold'
+ */
+function dither(lum, w, h, method = 'fs', threshold = 0.5) {
+  const out = new Uint8Array(w * h);
+  if (method === 'threshold') {
+    for (let i = 0; i < out.length; i++) out[i] = lum[i] < threshold ? 1 : 0;
+    return out;
+  }
+  if (method === 'bayer') {
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const t = BAYER8[(y & 7) * 8 + (x & 7)];
+        out[y * w + x] = lum[y * w + x] < t ? 1 : 0;
+      }
+    }
+    return out;
+  }
+
+  const buf = Float32Array.from(lum);
+  const put = (x, y, e) => {
+    if (x < 0 || x >= w || y < 0 || y >= h) return;
+    buf[y * w + x] += e;
+  };
+  const atkinson = method === 'atkinson';
+  for (let y = 0; y < h; y++) {
+    const ltr = true; // barqarorlik uchun serpantin ishlatmaymiz
+    for (let k = 0; k < w; k++) {
+      const x = ltr ? k : w - 1 - k;
+      const old = buf[y * w + x];
+      const black = old < threshold ? 1 : 0;
+      out[y * w + x] = black;
+      const err = old - (black ? 0 : 1);
+      if (atkinson) {
+        const e = err / 8;
+        put(x + 1, y, e); put(x + 2, y, e);
+        put(x - 1, y + 1, e); put(x, y + 1, e); put(x + 1, y + 1, e);
+        put(x, y + 2, e);
+      } else {
+        put(x + 1, y, (err * 7) / 16);
+        put(x - 1, y + 1, (err * 3) / 16);
+        put(x, y + 1, (err * 5) / 16);
+        put(x + 1, y + 1, (err * 1) / 16);
+      }
+    }
+  }
+  return out;
+}
+
+/** To'liq quvur: RGBA -> (pixelW x pixelH) binar tasvir. */
+function prepareBinary(rgba, sw, sh, pixelW, pixelH, opts = {}) {
+  const lum = rgbaToLuma(rgba, sw, sh);
+  const small = resample(lum, sw, sh, pixelW, pixelH);
+  const tuned = adjust(small, opts);
+  return { binary: dither(tuned, pixelW, pixelH, opts.method || 'fs', opts.threshold ?? 0.5), gray: tuned };
+}
+
+/* ===== src/layout.js ===== */
+/**
+ * Qog'ozdagi joylashuvni hisoblash: qaysi ulush qayerga, qanday o'lchamda
+ * bosiladi, yirtish chiziqlari qayerda bo'ladi, modul (subpiksel) necha mm.
+ * Barcha o'lchamlar millimetrda, koordinata boshi — varaqning chap-yuqori burchagi.
+ */
+
+const PAPERS = {
+  A3: { label: 'A3 — 297 × 420 mm', w: 297, h: 420 },
+  A4: { label: 'A4 — 210 × 297 mm', w: 210, h: 297 },
+  A5: { label: 'A5 — 148 × 210 mm', w: 148, h: 210 },
+  A6: { label: 'A6 — 105 × 148 mm', w: 105, h: 148 },
+  Letter: { label: 'Letter — 216 × 279 mm', w: 215.9, h: 279.4 },
+  Legal: { label: 'Legal — 216 × 356 mm', w: 215.9, h: 355.6 },
+};
+
+/** n ta ulush uchun eng qulay setka (ustun × qator) ni tanlaydi. */
+function bestGrid(n, pageW, pageH, marginMm, gutterMm, padMm, cellAspect) {
+  let best = null;
+  for (let gc = 1; gc <= n; gc++) {
+    const gr = Math.ceil(n / gc);
+    const cellW = (pageW - 2 * marginMm - (gc - 1) * gutterMm) / gc;
+    const cellH = (pageH - 2 * marginMm - (gr - 1) * gutterMm) / gr;
+    const innerW = cellW - 2 * padMm;
+    const innerH = cellH - 2 * padMm;
+    if (innerW <= 5 || innerH <= 5) continue;
+    let iw = Math.min(innerW, innerH * cellAspect);
+    let ih = iw / cellAspect;
+    const area = iw * ih;
+    const waste = gc * gr - n;
+    if (!best || area > best.area * 1.0001 || (Math.abs(area - best.area) <= best.area * 0.0001 && waste < best.waste)) {
+      best = { gc, gr, cellW, cellH, innerW, innerH, iw, ih, area, waste };
+    }
+  }
+  if (!best) throw new Error('Qog\'oz juda kichik: chegara yoki ulushlar sonini o\'zgartiring.');
+  return best;
+}
+
+/**
+ * Piksel setkasini tanlash: maydonni deyarli yo'qotmagan holda (>= 90%)
+ * tasvir nisbatini eng aniq saqlaydigan butun o'lchamlarni topadi.
+ * Faqat "eng kattasini olib, qolganini floor qilish" nisbatni buzadi
+ * (masalan 12x19 o'rniga 12x18 kerak bo'ladi).
+ */
+function fitPixelGrid(maxW, maxH, ratio) {
+  const cands = [];
+  const stepsW = Math.max(1, Math.min(8, Math.round(maxW * 0.12)));
+  const stepsH = Math.max(1, Math.min(8, Math.round(maxH * 0.12)));
+  const add = (w, h) => {
+    if (w >= 1 && h >= 1 && w <= maxW && h <= maxH) {
+      cands.push({ w, h, err: Math.abs((w / h) / ratio - 1), area: w * h });
+    }
+  };
+  for (let h = maxH; h >= Math.max(1, maxH - stepsH); h--) {
+    add(Math.floor(h * ratio), h);
+    add(Math.ceil(h * ratio), h);
+  }
+  for (let w = maxW; w >= Math.max(1, maxW - stepsW); w--) {
+    add(w, Math.floor(w / ratio));
+    add(w, Math.ceil(w / ratio));
+  }
+  if (!cands.length) return { w: Math.max(1, maxW), h: Math.max(1, maxH) };
+  const maxArea = Math.max(...cands.map((c) => c.area));
+  // Ballar: nisbat xatosi asosiy, maydon yo'qotishi ikkilamchi (koef. 0.1)
+  const good = cands.filter((c) => c.area >= maxArea * 0.7);
+  good.sort((a, b) => {
+    const sa = a.err + 0.1 * (1 - a.area / maxArea);
+    const sb = b.err + 0.1 * (1 - b.area / maxArea);
+    return (sa - sb) || (b.area - a.area);
+  });
+  return good[0];
+}
+
+/**
+ * @param {object} o
+ * @param {string} o.paper        PAPERS kaliti
+ * @param {'portrait'|'landscape'} o.orientation
+ * @param {number} o.n            ulushlar soni
+ * @param {'sheet'|'pages'} o.mode 'sheet' = hammasi bitta varaqda (yirtib ishlatiladi)
+ * @param {number} o.marginMm
+ * @param {number} o.gutterMm     ulushlar orasidagi yirtish yo'lagi
+ * @param {number} o.moduleMm     bitta modulning tomoni
+ * @param {number} o.imgAspect    asl rasm nisbati (kenglik/balandlik)
+ * @param {number} o.blockRows    bitta piksel bloki: qatorlar
+ * @param {number} o.blockCols    bitta piksel bloki: ustunlar
+ */
+function computeLayout(o) {
+  const {
+    paper = 'A4', orientation = 'portrait', n = 2, mode = 'sheet',
+    marginMm = 8, gutterMm = 6, imgAspect = 1,
+    blockRows = 1, blockCols = 2,
+    frameGapMm = 1.5, labelMm = 4.5, maxModules = 6e6, minPixels = 12,
+  } = o;
+  let moduleMm = o.moduleMm ?? 0.35;
+
+  const p = PAPERS[paper];
+  if (!p) throw new Error('Noma\'lum qog\'oz formati: ' + paper);
+  const pageW = orientation === 'landscape' ? p.h : p.w;
+  const pageH = orientation === 'landscape' ? p.w : p.h;
+
+  const warnings = [];
+  const padMm = frameGapMm + 1 + labelMm; // ramka + burchak belgilari + yozuv uchun joy
+  const blockAspect = blockCols / blockRows;
+  // Blok kvadrat bo'lmagani uchun manba piksel setkasini oldindan "siqamiz",
+  // shunda bosilgan tasvir nisbati asl rasm nisbatiga teng bo'ladi.
+  const pixelRatio = imgAspect / blockAspect; // pixelW / pixelH
+
+  const perPage = mode === 'pages' ? 1 : n;
+  const grid = bestGrid(perPage, pageW, pageH, marginMm, gutterMm, padMm, imgAspect);
+
+  let pixelW = 0, pixelH = 0;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const maxPxW = Math.max(1, Math.floor(grid.innerW / moduleMm / blockCols));
+    const maxPxH = Math.max(1, Math.floor(grid.innerH / moduleMm / blockRows));
+    const fit = fitPixelGrid(maxPxW, maxPxH, pixelRatio);
+    pixelW = fit.w;
+    pixelH = fit.h;
+    const total = pixelW * blockCols * pixelH * blockRows;
+    if (total <= maxModules || pixelW < minPixels || pixelH < minPixels) break;
+    moduleMm = +(moduleMm * Math.sqrt(total / maxModules)).toFixed(4);
+    if (attempt === 0) {
+      warnings.push(
+        `Modul o'lchami unumdorlik uchun ${moduleMm.toFixed(2)} mm ga kattalashtirildi ` +
+        `(aks holda bitta ulushda ${(total / 1e6).toFixed(1)} mln modul bo'lardi).`
+      );
+    }
+  }
+
+  if (pixelW < minPixels || pixelH < minPixels) {
+    warnings.push('Tasvir juda kichik chiqdi: modul o\'lchamini kichraytiring, kattaroq qog\'oz tanlang yoki ulushlar sonini kamaytiring.');
+    pixelW = Math.max(1, pixelW);
+    pixelH = Math.max(1, pixelH);
+  } else if (pixelW < 60 || pixelH < 60) {
+    warnings.push(`Aniqlik past (${pixelW} x ${pixelH} piksel): kattaroq qog'oz, kichikroq modul yoki "har biri alohida varaqda" rejimi natijani yaxshilaydi.`);
+  }
+
+  const moduleCols = pixelW * blockCols;
+  const moduleRows = pixelH * blockRows;
+  const imageWmm = moduleCols * moduleMm;
+  const imageHmm = moduleRows * moduleMm;
+
+  const placements = [];
+  for (let i = 0; i < n; i++) {
+    const page = mode === 'pages' ? i : 0;
+    const slot = mode === 'pages' ? 0 : i;
+    const gx = slot % grid.gc;
+    const gy = Math.floor(slot / grid.gc);
+    const cellX = marginMm + gx * (grid.cellW + gutterMm);
+    const cellY = marginMm + gy * (grid.cellH + gutterMm);
+    const imgX = cellX + (grid.cellW - imageWmm) / 2;
+    const imgY = cellY + (grid.cellH - labelMm - imageHmm) / 2;
+    placements.push({
+      share: i, page,
+      cellX, cellY, cellW: grid.cellW, cellH: grid.cellH,
+      imgX, imgY, imgW: imageWmm, imgH: imageHmm,
+      frameX: imgX - frameGapMm, frameY: imgY - frameGapMm,
+      frameW: imageWmm + 2 * frameGapMm, frameH: imageHmm + 2 * frameGapMm,
+      labelX: imgX, labelY: imgY + imageHmm + frameGapMm + 3.2,
+    });
+  }
+
+  // Yirtish/kesish chiziqlari (faqat bitta varaqqa joylashtirilganda)
+  const cuts = [];
+  if (mode === 'sheet') {
+    for (let i = 1; i < grid.gc; i++) {
+      const x = marginMm + i * grid.cellW + (i - 0.5) * gutterMm;
+      cuts.push({ x1: x, y1: 4, x2: x, y2: pageH - 4 });
+    }
+    for (let i = 1; i < grid.gr; i++) {
+      const y = marginMm + i * grid.cellH + (i - 0.5) * gutterMm;
+      cuts.push({ x1: 4, y1: y, x2: pageW - 4, y2: y });
+    }
+  }
+
+  return {
+    pageW, pageH, pageCount: mode === 'pages' ? n : 1,
+    grid: { cols: grid.gc, rows: grid.gr },
+    mode, moduleMm, pixelW, pixelH, moduleCols, moduleRows,
+    imageWmm, imageHmm, placements, cuts, warnings,
+    frameGapMm, labelMm,
+  };
+}
+
+/* ===== src/pdf.js ===== */
+/**
+ * Minimal PDF generatori (hech qanday tashqi kutubxona yo'q).
+ *
+ * Nega PDF? Ulushlarni rastr rasm sifatida chop etganda brauzer/printer
+ * piksellarni "silliqlashi" mumkin — bu vizual kriptografiyani buzadi.
+ * PDF ichida 1-bitli rasm (DeviceGray, BitsPerComponent 1, /Interpolate false)
+ * aniq millimetrlarda joylashtiriladi, ya'ni modullar tekis va o'lchami aniq
+ * bo'ladi — printerning to'liq aniqligida bosiladi.
+ *
+ * Kiritish o'lchamlari millimetrda, koordinata boshi chap-yuqorida.
+ */
+
+const MM = 72 / 25.4; // mm -> PDF punkti
+
+function latin1(s) {
+  const b = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i) & 0xff;
+  return b;
+}
+
+function pdfString(s) {
+  // PDF matnida faqat latin1; boshqa belgilarni almashtiramiz
+  const clean = String(s).replace(/[^\x20-\x7e]/g, (ch) => ({ '‘': "'", '’': "'", '×': 'x', '–': '-', '—': '-' }[ch] ?? '?'));
+  return '(' + clean.replace(/[\\()]/g, (m) => '\\' + m) + ')';
+}
+
+const f = (v) => {
+  const r = Math.round(v * 1000) / 1000;
+  return Number.isInteger(r) ? String(r) : String(r);
+};
+
+/** 1 = qora bo'lgan massivni 1-bitli DeviceGray oqimga paketlash (qator baytga to'ldiriladi). */
+function packOneBit(bits, w, h) {
+  const rowBytes = (w + 7) >> 3;
+  const out = new Uint8Array(rowBytes * h);
+  for (let y = 0; y < h; y++) {
+    const ro = y * rowBytes, so = y * w;
+    for (let x = 0; x < w; x++) {
+      if (!bits[so + x]) out[ro + (x >> 3)] |= 0x80 >> (x & 7); // 1 = oq
+    }
+  }
+  return { data: out, rowBytes };
+}
+
+/**
+ * @param {object} doc
+ * @param {string} [doc.title]
+ * @param {Array} doc.pages  [{ widthMm, heightMm, images, rects, lines, texts }]
+ * @returns {Uint8Array}
+ */
+function buildPdf(doc) {
+  const objs = [null, null, null]; // 1: Catalog, 2: Pages, 3: Font
+  const addObj = (chunks) => { objs.push(chunks); return objs.length; };
+
+  const pageRefs = [];
+
+  for (const page of doc.pages) {
+    const pw = page.widthMm * MM;
+    const ph = page.heightMm * MM;
+    const flipY = (yMm) => (page.heightMm - yMm) * MM;
+
+    const xobjects = [];
+    for (const img of page.images || []) {
+      const { data } = packOneBit(img.bits, img.w, img.h);
+      const num = addObj([
+        `<< /Type /XObject /Subtype /Image /Width ${img.w} /Height ${img.h} ` +
+        `/ColorSpace /DeviceGray /BitsPerComponent 1 /Interpolate false /Length ${data.length} >>\nstream\n`,
+        data,
+        '\nendstream',
+      ]);
+      xobjects.push({ name: `Im${xobjects.length}`, num, img });
+    }
+
+    const ops = [];
+    ops.push('q', '0 G', '0 g');
+    for (const x of xobjects) {
+      const { img } = x;
+      ops.push('q');
+      ops.push(`${f(img.wMm * MM)} 0 0 ${f(img.hMm * MM)} ${f(img.xMm * MM)} ${f(flipY(img.yMm + img.hMm))} cm`);
+      ops.push(`/${x.name} Do`);
+      ops.push('Q');
+    }
+    const setStroke = (o) => {
+      ops.push(`${f((o.widthMm ?? 0.15) * MM)} w`);
+      ops.push(o.dash ? `[${o.dash.map((d) => f(d * MM)).join(' ')}] 0 d` : '[] 0 d');
+      if (o.gray != null) ops.push(`${f(o.gray)} G`);
+      else ops.push('0 G');
+    };
+    for (const r of page.rects || []) {
+      setStroke(r);
+      ops.push(`${f(r.x * MM)} ${f(flipY(r.y + r.h))} ${f(r.w * MM)} ${f(r.h * MM)} re S`);
+    }
+    for (const l of page.lines || []) {
+      setStroke(l);
+      ops.push(`${f(l.x1 * MM)} ${f(flipY(l.y1))} m ${f(l.x2 * MM)} ${f(flipY(l.y2))} l S`);
+    }
+    for (const t of page.texts || []) {
+      ops.push('BT', `/F1 ${f(t.size ?? 8)} Tf`, `${f(t.gray ?? 0)} g`,
+        `${f(t.x * MM)} ${f(flipY(t.y))} Td`, `${pdfString(t.text)} Tj`, 'ET');
+    }
+    ops.push('Q');
+    const content = ops.join('\n') + '\n';
+    const contentNum = addObj([`<< /Length ${content.length} >>\nstream\n${content}\nendstream`]);
+
+    const xobjDict = xobjects.length
+      ? ` /XObject << ${xobjects.map((x) => `/${x.name} ${x.num} 0 R`).join(' ')} >>`
+      : '';
+    const pageNum = addObj([
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${f(pw)} ${f(ph)}] ` +
+      `/Resources << /Font << /F1 3 0 R >>${xobjDict} >> /Contents ${contentNum} 0 R >>`,
+    ]);
+    pageRefs.push(pageNum);
+  }
+
+  objs[0] = ['<< /Type /Catalog /Pages 2 0 R >>'];
+  objs[1] = [`<< /Type /Pages /Count ${pageRefs.length} /Kids [${pageRefs.map((n) => `${n} 0 R`).join(' ')}] >>`];
+  objs[2] = ['<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'];
+
+  const infoNum = doc.title
+    ? addObj([`<< /Title ${pdfString(doc.title)} /Producer ${pdfString('QR Amazing (visual cryptography)')} >>`])
+    : 0;
+
+  // Faylni yig'ish
+  const chunks = [];
+  let len = 0;
+  const push = (c) => { const b = typeof c === 'string' ? latin1(c) : c; chunks.push(b); len += b.length; };
+
+  push('%PDF-1.4\n');
+  push(new Uint8Array([0x25, 0xe2, 0xe3, 0xcf, 0xd3, 0x0a]));
+  const offsets = [];
+  objs.forEach((body, i) => {
+    offsets[i] = len;
+    push(`${i + 1} 0 obj\n`);
+    for (const c of body) push(c);
+    push('\nendobj\n');
+  });
+  const xrefOff = len;
+  push(`xref\n0 ${objs.length + 1}\n`);
+  push('0000000000 65535 f \n');
+  for (let i = 0; i < objs.length; i++) push(String(offsets[i]).padStart(10, '0') + ' 00000 n \n');
+  push(`trailer\n<< /Size ${objs.length + 1} /Root 1 0 R${infoNum ? ` /Info ${infoNum} 0 R` : ''} >>\nstartxref\n${xrefOff}\n%%EOF\n`);
+
+  const out = new Uint8Array(len);
+  let o = 0;
+  for (const c of chunks) { out.set(c, o); o += c.length; }
+  return out;
+}
+
+/* ===== src/sheet.js ===== */
+/**
+ * Layout + ulushlar -> chop etishga tayyor PDF hujjati.
+ * Har bir ulush atrofida bir xil ramka, burchak va o'rta belgilar bo'ladi —
+ * ulushlarni ustma-ust qo'yganda aynan shu belgilar bo'yicha moslanadi.
+ */
+
+const MARK = 4;      // burchak belgisi uzunligi, mm
+const HAIR = 0.18;   // nozik chiziq qalinligi, mm
+
+function alignmentMarks(pl) {
+  const rects = [{ x: pl.frameX, y: pl.frameY, w: pl.frameW, h: pl.frameH, widthMm: HAIR }];
+  const lines = [];
+  const { frameX: x, frameY: y, frameW: w, frameH: h } = pl;
+  const g = 0.8; // ramkadan belgigacha bo'shliq
+  const corners = [
+    [x, y, -1, -1], [x + w, y, 1, -1],
+    [x, y + h, -1, 1], [x + w, y + h, 1, 1],
+  ];
+  for (const [cx, cy, sx, sy] of corners) {
+    lines.push({ x1: cx + sx * g, y1: cy, x2: cx + sx * (g + MARK), y2: cy, widthMm: HAIR });
+    lines.push({ x1: cx, y1: cy + sy * g, x2: cx, y2: cy + sy * (g + MARK), widthMm: HAIR });
+  }
+  // Tomonlarning o'rtasidagi belgilar
+  const mid = [
+    [x + w / 2, y, 0, -1], [x + w / 2, y + h, 0, 1],
+    [x, y + h / 2, -1, 0], [x + w, y + h / 2, 1, 0],
+  ];
+  for (const [cx, cy, sx, sy] of mid) {
+    lines.push({ x1: cx + sx * g, y1: cy + sy * g, x2: cx + sx * (g + 2.5), y2: cy + sy * (g + 2.5), widthMm: HAIR });
+  }
+  return { rects, lines };
+}
+
+/**
+ * @param {object} p
+ * @param {Uint8Array[]} p.shares       modul massivlari (1 = siyoh)
+ * @param {number} p.moduleCols
+ * @param {number} p.moduleRows
+ * @param {object} p.layout             computeLayout() natijasi
+ * @param {object} [p.meta]             { paper, orientation, n, m, fileName }
+ */
+function buildSheetDoc({ shares, moduleCols, moduleRows, layout, meta = {} }) {
+  const pages = [];
+  for (let pageIndex = 0; pageIndex < layout.pageCount; pageIndex++) {
+    const page = {
+      widthMm: layout.pageW, heightMm: layout.pageH,
+      images: [], rects: [], lines: [], texts: [],
+    };
+
+    for (const pl of layout.placements.filter((q) => q.page === pageIndex)) {
+      page.images.push({
+        bits: shares[pl.share], w: moduleCols, h: moduleRows,
+        xMm: pl.imgX, yMm: pl.imgY, wMm: pl.imgW, hMm: pl.imgH,
+      });
+      const marks = alignmentMarks(pl);
+      page.rects.push(...marks.rects);
+      page.lines.push(...marks.lines);
+      page.texts.push({
+        x: pl.labelX, y: pl.labelY, size: 7,
+        text: `ULUSH ${pl.share + 1} / ${shares.length}  -  hammasini ustma-ust qo'ying`,
+      });
+    }
+
+    for (const c of layout.cuts) {
+      page.lines.push({ ...c, widthMm: 0.25, dash: [2, 1.6], gray: 0.45 });
+    }
+
+    const parts = [
+      `${meta.n ?? shares.length} ulush`,
+      `${meta.paper ?? ''} ${layout.mode === 'sheet' ? '(bitta varaq)' : `(varaq ${pageIndex + 1}/${layout.pageCount})`}`,
+      `modul ${layout.moduleMm.toFixed(2)} mm`,
+      `${layout.pixelW} x ${layout.pixelH} piksel`,
+      `kontrast 1/${meta.m ?? '?'}`,
+    ];
+    page.texts.push({
+      x: 6, y: layout.pageH - 3, size: 6, gray: 0.35,
+      text: `QR Amazing (visual cryptography): ${parts.join('  |  ')}${meta.fileName ? '  |  ' + meta.fileName : ''}`,
+    });
+    pages.push(page);
+  }
+
+  return { title: `QR Amazing - ${shares.length} ulush`, pages };
+}
+
+function buildSheetPdf(args) {
+  return buildPdf(buildSheetDoc(args));
+}
+
+/* ===== src/bmp.js ===== */
+/**
+ * Zaxira BMP dekoderi.
+ * Ko'p brauzerlar BMP ni o'zi ochadi, lekin ochilmasa shu dekoder ishlatiladi.
+ * Qo'llab-quvvatlanadi: BI_RGB 1/4/8/16/24/32 bit, BI_BITFIELDS 16/32 bit,
+ * pastdan-yuqoriga va yuqoridan-pastga qatorlar. RLE siqilgan BMP qo'llanmaydi.
+ */
+function decodeBmp(buffer) {
+  const v = new DataView(buffer instanceof ArrayBuffer ? buffer : buffer.buffer);
+  const u8 = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+  if (u8[0] !== 0x42 || u8[1] !== 0x4d) throw new Error('BMP emas (BM imzosi yo\'q)');
+
+  const dataOffset = v.getUint32(10, true);
+  const dibSize = v.getUint32(14, true);
+  if (dibSize < 12) throw new Error('BMP sarlavhasi buzilgan');
+
+  let width, height, bpp, compression = 0, paletteCount = 0;
+  if (dibSize === 12) { // BITMAPCOREHEADER
+    width = v.getInt16(18, true);
+    height = v.getInt16(20, true);
+    bpp = v.getUint16(24, true);
+  } else {
+    width = v.getInt32(18, true);
+    height = v.getInt32(22, true);
+    bpp = v.getUint16(28, true);
+    compression = v.getUint32(30, true);
+    paletteCount = v.getUint32(46, true);
+  }
+  if (compression !== 0 && compression !== 3) throw new Error('Siqilgan BMP qo\'llab-quvvatlanmaydi');
+
+  const topDown = height < 0;
+  const h = Math.abs(height);
+  const w = width;
+  if (w <= 0 || h <= 0 || w * h > 80e6) throw new Error('BMP o\'lchami yaroqsiz');
+
+  // Palitra
+  const palOffset = 14 + dibSize;
+  const palEntry = dibSize === 12 ? 3 : 4;
+  let palette = null;
+  if (bpp <= 8) {
+    const count = paletteCount || 1 << bpp;
+    palette = new Uint8Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const o = palOffset + i * palEntry;
+      palette[i * 3] = u8[o + 2];
+      palette[i * 3 + 1] = u8[o + 1];
+      palette[i * 3 + 2] = u8[o];
+    }
+  }
+
+  // Bit maskalar
+  let masks = null;
+  if (compression === 3 && dibSize >= 40) {
+    masks = [v.getUint32(54, true), v.getUint32(58, true), v.getUint32(62, true)];
+  } else if (bpp === 16) {
+    masks = [0x7c00, 0x03e0, 0x001f];
+  } else if (bpp === 32) {
+    masks = [0x00ff0000, 0x0000ff00, 0x000000ff];
+  }
+  const shiftScale = (mask) => {
+    if (!mask) return null;
+    let shift = 0;
+    while (((mask >>> shift) & 1) === 0) shift++;
+    const bits = ((mask >>> shift) >>> 0).toString(2).length;
+    return { shift, max: (1 << bits) - 1 };
+  };
+  const ms = masks ? masks.map(shiftScale) : null;
+
+  const stride = (((w * bpp + 31) >> 5) << 2);
+  const out = new Uint8ClampedArray(w * h * 4);
+
+  for (let row = 0; row < h; row++) {
+    const y = topDown ? row : h - 1 - row;
+    const ro = dataOffset + row * stride;
+    for (let x = 0; x < w; x++) {
+      let r = 0, g = 0, b = 0, a = 255;
+      if (bpp === 1 || bpp === 4 || bpp === 8) {
+        const perByte = 8 / bpp;
+        const byte = u8[ro + Math.floor(x / perByte)] ?? 0;
+        const shift = 8 - bpp * ((x % perByte) + 1);
+        const idx = (byte >> shift) & ((1 << bpp) - 1);
+        r = palette[idx * 3]; g = palette[idx * 3 + 1]; b = palette[idx * 3 + 2];
+      } else if (bpp === 24) {
+        const o = ro + x * 3;
+        b = u8[o]; g = u8[o + 1]; r = u8[o + 2];
+      } else if (bpp === 16 || bpp === 32) {
+        const o = ro + x * (bpp / 8);
+        const px = bpp === 16 ? v.getUint16(o, true) : v.getUint32(o, true);
+        const ch = (i) => (ms[i] ? Math.round((((px & masks[i]) >>> ms[i].shift) / ms[i].max) * 255) : 0);
+        r = ch(0); g = ch(1); b = ch(2);
+      } else {
+        throw new Error(`${bpp}-bitli BMP qo'llab-quvvatlanmaydi`);
+      }
+      const p = (y * w + x) * 4;
+      out[p] = r; out[p + 1] = g; out[p + 2] = b; out[p + 3] = a;
+    }
+  }
+  return { data: out, width: w, height: h };
+}
+
+/* ===== src/app.js ===== */
+/**
+ * UI mantiqi: rasmni o'qish, sozlamalarni yig'ish, ulushlarni yaratish,
+ * ko'rish oynalarini chizish va chop etishga tayyor PDF berish.
+ */
+
+
+
+
+
+const $ = (id) => document.getElementById(id);
+const MAX_SOURCE_SIDE = 2400;
+
+const state = {
+  source: null,      // { rgba, width, height, aspect }
+  fileName: '',
+  result: null,      // { geom, layout, light, binary, n, m }
+  pdfUrl: null,
+  seed: (Math.random() * 1e9) | 0,
+};
+
+/* ----------------------------------------------------------- yordamchilar */
+
+function setStatus(text, kind = '') {
+  const el = $('status');
+  el.textContent = text;
+  el.className = 'status' + (kind ? ' ' + kind : '');
+}
+
+const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+
+function download(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+/** 1 = qora bo'lgan modul massivini canvas ga 1 modul = 1 piksel qilib chizadi. */
+function drawBits(canvas, bits, w, h) {
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: false });
+  const img = ctx.createImageData(w, h);
+  const d = img.data;
+  for (let i = 0, p = 0; i < w * h; i++, p += 4) {
+    const v = bits[i] ? 0 : 255;
+    d[p] = d[p + 1] = d[p + 2] = v;
+    d[p + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+/** O'tgan yorug'lik ulushini (0..1) kulrang tasvir sifatida chizadi. */
+function drawLight(canvas, light, w, h, gain = 1) {
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(w, h);
+  const d = img.data;
+  for (let i = 0, p = 0; i < w * h; i++, p += 4) {
+    const v = Math.round(Math.min(1, light[i] * gain) * 255);
+    d[p] = d[p + 1] = d[p + 2] = v;
+    d[p + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+/* ------------------------------------------------------------ rasmni o'qish */
+
+async function rgbaFromBitmap(bitmap) {
+  const scale = Math.min(1, MAX_SOURCE_SIDE / Math.max(bitmap.width, bitmap.height));
+  const w = Math.max(1, Math.round(bitmap.width * scale));
+  const h = Math.max(1, Math.round(bitmap.height * scale));
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  const { data } = ctx.getImageData(0, 0, w, h);
+  return { rgba: data, width: w, height: h, aspect: bitmap.width / bitmap.height };
+}
+
+async function loadFile(file) {
+  if (!file) return;
+  const okType = /image\/(jpeg|png|bmp|x-ms-bmp)/.test(file.type) || /\.(jpe?g|png|bmp)$/i.test(file.name);
+  if (!okType) {
+    setStatus('Faqat JPG, PNG yoki BMP fayl qo\'llab-quvvatlanadi.', 'err');
+    return;
+  }
+  setStatus('Rasm o\'qilmoqda…', 'busy');
+  try {
+    const buf = await file.arrayBuffer();
+    let src;
+    try {
+      const bmp = await createImageBitmap(new Blob([buf], { type: file.type || 'image/png' }));
+      src = await rgbaFromBitmap(bmp);
+      bmp.close?.();
+    } catch (err) {
+      // Brauzer BMP ni ochmasa — o'zimizning dekoder
+      const dec = decodeBmp(buf);
+      if (dec.width * dec.height > 40e6) throw new Error('Rasm juda katta');
+      src = { rgba: dec.data, width: dec.width, height: dec.height, aspect: dec.width / dec.height };
+    }
+    state.source = src;
+    state.fileName = file.name;
+
+    const thumb = $('thumb');
+    if (thumb.src) URL.revokeObjectURL(thumb.src);
+    thumb.src = URL.createObjectURL(file);
+    thumb.hidden = false;
+    $('drop').classList.add('has-image');
+    $('fileInfo').textContent = `${file.name} — ${src.width} × ${src.height} px, ${(file.size / 1024).toFixed(0)} KB`;
+    $('generate').disabled = false;
+    setStatus('Rasm tayyor. “Ulushlarni yaratish” tugmasini bosing.');
+  } catch (err) {
+    console.error(err);
+    setStatus('Rasmni o\'qib bo\'lmadi: ' + err.message, 'err');
+  }
+}
+
+/* --------------------------------------------------------------- yaratish */
+
+function readOptions() {
+  return {
+    n: Number($('n').value),
+    paper: $('paper').value,
+    orientation: $('orientation').value,
+    mode: $('mode').value,
+    moduleMm: Number($('module').value),
+    marginMm: Number($('margin').value),
+    gutterMm: Number($('gutter').value),
+    method: $('dither').value,
+    brightness: Number($('bright').value),
+    contrast: Number($('contrast').value),
+    gamma: Number($('gamma').value),
+    invert: $('invert').checked,
+    autoLevels: $('autoLevels').checked,
+  };
+}
+
+async function generate() {
+  if (!state.source) return;
+  const o = readOptions();
+  $('generate').disabled = true;
+  $('reshuffle').disabled = true;
+  setStatus('Hisoblanmoqda…', 'busy');
+  await nextFrame();
+
+  try {
+    const m = subpixelCount(o.n);
+    const bs = blockShape(m);
+    const layout = computeLayout({
+      paper: o.paper, orientation: o.orientation, n: o.n, mode: o.mode,
+      marginMm: o.marginMm, gutterMm: o.gutterMm, moduleMm: o.moduleMm,
+      imgAspect: state.source.aspect, blockRows: bs.rows, blockCols: bs.cols,
+    });
+
+    const { binary } = prepareBinary(
+      state.source.rgba, state.source.width, state.source.height,
+      layout.pixelW, layout.pixelH,
+      { method: o.method, brightness: o.brightness, contrast: o.contrast, gamma: o.gamma, invert: o.invert, autoLevels: o.autoLevels }
+    );
+
+    setStatus(`${o.n} ta ulush kodlanmoqda (${(layout.moduleCols * layout.moduleRows / 1e6).toFixed(2)} mln modul)…`, 'busy');
+    await nextFrame();
+
+    const geom = encodeShares(binary, layout.pixelW, layout.pixelH, o.n, makeRng(state.seed));
+    const light = simulateStack(geom.shares, geom);
+
+    state.result = { geom, layout, light, binary, n: o.n, m, options: o };
+    if (state.pdfUrl) { URL.revokeObjectURL(state.pdfUrl); state.pdfUrl = null; }
+
+    render();
+    setStatus('Tayyor. PDF ni yuklab olib, 100% masshtabda chop eting.');
+  } catch (err) {
+    console.error(err);
+    setStatus('Xato: ' + err.message, 'err');
+  } finally {
+    $('generate').disabled = false;
+    $('reshuffle').disabled = !state.result;
+  }
+}
+
+function render() {
+  const { geom, layout, light, binary, n, m } = state.result;
+  $('empty').hidden = true;
+  $('output').hidden = false;
+
+  // Ogohlantirishlar
+  const warns = [...layout.warnings];
+  if (n >= 5) warns.push(`n = ${n} bo'lganda o'tgan yorug'lik faqat 1/${m} — oddiy qog'ozda rasmni ko'rish juda qiyin. 2–4 tavsiya etiladi.`);
+  if (layout.moduleMm < 0.3) warns.push('Modul 0.3 mm dan kichik: uy printerlari bunda siyohni yoyib yuborishi mumkin, bo\'laklarni moslash ham qiyin bo\'ladi.');
+  const wbox = $('warnings');
+  wbox.hidden = warns.length === 0;
+  wbox.innerHTML = warns.length ? '<ul>' + warns.map((w) => `<li>${w}</li>`).join('') + '</ul>' : '';
+
+  // Ma'lumotlar
+  const openPct = (100 / m).toFixed(m > 16 ? 2 : 1);
+  const rows = [
+    ['Ulushlar', `${n} ta`],
+    ['Kontrast', `1/${m} (yorug'lik ${openPct}%)`],
+    ['Qog\'oz', `${state.result.options.paper} ${layout.pageW.toFixed(0)}×${layout.pageH.toFixed(0)} mm, ${layout.pageCount} varaq`],
+    ['Bitta ulush o\'lchami', `${layout.imageWmm.toFixed(1)} × ${layout.imageHmm.toFixed(1)} mm`],
+    ['Tasvir aniqligi', `${layout.pixelW} × ${layout.pixelH} piksel`],
+    ['Modul', `${layout.moduleMm.toFixed(2)} mm (blok ${geom.blockRows}×${geom.blockCols})`],
+    ['Modullar soni', `${(layout.moduleCols * layout.moduleRows / 1e6).toFixed(2)} mln / ulush`],
+  ];
+  $('info').innerHTML = rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+
+  // Simulyatsiyalar.
+  // Piksel setkasi ataylab "siqilgan" (blok kvadrat emas), shuning uchun
+  // ko'rsatishda haqiqiy bosma nisbatini majburan qo'yamiz.
+  drawLight($('simReal'), light, layout.pixelW, layout.pixelH, 1);
+  drawLight($('simNorm'), light, layout.pixelW, layout.pixelH, m);
+  drawBits($('simSource'), binary, layout.pixelW, layout.pixelH);
+  const printAspect = layout.imageWmm / layout.imageHmm;
+  for (const id of ['simReal', 'simNorm', 'simSource']) $(id).style.aspectRatio = String(printAspect);
+
+  // Ulushlar
+  const box = $('shares');
+  box.innerHTML = '';
+  geom.shares.forEach((share, i) => {
+    const fig = document.createElement('figure');
+    fig.className = 'share';
+    const canvas = document.createElement('canvas');
+    fig.appendChild(canvas);
+    const row = document.createElement('div');
+    row.className = 'cap-row';
+    row.innerHTML = `<span class="muted small">Ulush ${i + 1} / ${n}</span>`;
+    const btn = document.createElement('button');
+    btn.textContent = 'PNG';
+    btn.onclick = () => canvas.toBlob((b) => download(b, `ulush-${i + 1}-dan-${n}.png`), 'image/png');
+    row.appendChild(btn);
+    fig.appendChild(row);
+    box.appendChild(fig);
+    drawBits(canvas, share, geom.width, geom.height);
+  });
+}
+
+/* ------------------------------------------------------------------- PDF */
+
+function pdfBlob() {
+  const { geom, layout, n, m, options } = state.result;
+  const bytes = buildSheetPdf({
+    shares: geom.shares, moduleCols: geom.width, moduleRows: geom.height, layout,
+    meta: { paper: options.paper, orientation: options.orientation, n, m, fileName: state.fileName },
+  });
+  return new Blob([bytes], { type: 'application/pdf' });
+}
+
+function pdfName() {
+  const { n, options } = state.result;
+  return `qr-amazing-${n}-ulush-${options.paper}${options.mode === 'pages' ? '-alohida' : ''}.pdf`;
+}
+
+/* --------------------------------------------------------------- ishga tushirish */
+
+function init() {
+  // Qog'oz ro'yxati
+  $('paper').innerHTML = Object.entries(PAPERS)
+    .map(([k, v]) => `<option value="${k}"${k === 'A4' ? ' selected' : ''}>${v.label}</option>`).join('');
+
+  // Fayl kiritish
+  const drop = $('drop');
+  drop.addEventListener('click', () => $('file').click());
+  drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('file').click(); } });
+  $('file').addEventListener('change', (e) => loadFile(e.target.files[0]));
+  for (const ev of ['dragenter', 'dragover']) {
+    drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); });
+  }
+  for (const ev of ['dragleave', 'drop']) {
+    drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); });
+  }
+  drop.addEventListener('drop', (e) => loadFile(e.dataTransfer.files[0]));
+  window.addEventListener('paste', (e) => {
+    const f = [...(e.clipboardData?.files || [])][0];
+    if (f) loadFile(f);
+  });
+
+  // Slayder ko'rsatkichlari
+  const bind = (id, out, fmt) => {
+    const upd = () => { $(out).textContent = fmt(Number($(id).value)); };
+    $(id).addEventListener('input', upd);
+    upd();
+  };
+  bind('module', 'moduleOut', (v) => v.toFixed(2));
+  bind('bright', 'brightOut', (v) => v.toFixed(2));
+  bind('contrast', 'contrastOut', (v) => v.toFixed(2));
+  bind('gamma', 'gammaOut', (v) => v.toFixed(2));
+
+  $('generate').addEventListener('click', () => generate());
+  $('reshuffle').addEventListener('click', () => { state.seed = (Math.random() * 1e9) | 0; generate(); });
+
+  $('pdf').addEventListener('click', () => {
+    if (!state.result) return;
+    download(pdfBlob(), pdfName());
+    setStatus('PDF yuklab olindi. Chop etishda masshtab 100% ("Actual size") bo\'lishi shart.');
+  });
+
+  $('print').addEventListener('click', () => {
+    if (!state.result) return;
+    if (state.pdfUrl) URL.revokeObjectURL(state.pdfUrl);
+    state.pdfUrl = URL.createObjectURL(pdfBlob());
+    const win = window.open(state.pdfUrl, '_blank');
+    if (win) {
+      setStatus('PDF yangi oynada ochildi — Ctrl/Cmd + P bilan chop eting (masshtab 100%).');
+    } else {
+      setStatus('Brauzer yangi oynani bloklab qo\'ydi. “PDF yuklab olish” dan foydalanib, faylni ochib chop eting.', 'err');
+    }
+  });
+
+  $('zipless').addEventListener('click', async () => {
+    if (!state.result) return;
+    const canvases = [...document.querySelectorAll('#shares canvas')];
+    for (let i = 0; i < canvases.length; i++) {
+      await new Promise((res) => canvases[i].toBlob((b) => {
+        download(b, `ulush-${i + 1}-dan-${canvases.length}.png`);
+        setTimeout(res, 350);
+      }, 'image/png'));
+    }
+    setStatus(`${canvases.length} ta PNG saqlandi. Eslatma: aniq chop etish uchun PDF ishlatish tavsiya etiladi.`);
+  });
+
+  // Sozlama o'zgarsa — natija eskirgani haqida eslatma
+  for (const id of ['n', 'paper', 'orientation', 'mode', 'module', 'margin', 'gutter', 'dither', 'bright', 'contrast', 'gamma', 'invert', 'autoLevels']) {
+    $(id).addEventListener('change', () => {
+      if (state.result) setStatus('Sozlama o\'zgardi — “Ulushlarni yaratish” ni qayta bosing.');
+    });
+  }
+}
+
+init();
+
+</script>
+</body>
+</html>

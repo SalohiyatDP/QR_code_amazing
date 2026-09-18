@@ -1,0 +1,13 @@
+{
+  "name": "qr-amazing",
+  "version": "1.0.0",
+  "description": "Rasmni QR-ga o'xshash n ta ulushga bo'ladi (vizual kriptografiya): chop etib, yirtib, ustma-ust qo'yib, orqadan chiroq yoqilsa rasm ko'rinadi",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node test/run-tests.mjs",
+    "build": "node build.mjs",
+    "serve": "python3 -m http.server 8000"
+  },
+  "keywords": ["visual-cryptography", "naor-shamir", "secret-sharing", "pdf", "canvas"]
+}

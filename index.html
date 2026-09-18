@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QR Amazing — rasmni QR-ga o'xshash ulushlarga bo'lish</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"></span>
+    <div>
+      <h1>QR Amazing</h1>
+      <p>Rasmni <b>n ta QR-ga o'xshash ulushga</b> bo'ladi. Bitta varaqqa bosiladi, o'rtasidan yirtiladi,
+         bo'laklar burchaklari bo'yicha ustma-ust qo'yiladi va orqadan chiroq yoqilsa — rasm ko'rinadi.</p>
+    </div>
+  </div>
+  <a class="help-link" href="#howto">Qanday ishlaydi?</a>
+</header>
+
+<main>
+  <!-- ============================ Sozlamalar ============================ -->
+  <section class="panel controls">
+    <h2>1. Rasm</h2>
+    <div id="drop" class="drop" tabindex="0">
+      <input type="file" id="file" accept="image/jpeg,image/png,image/bmp,.jpg,.jpeg,.png,.bmp" hidden>
+      <div class="drop-inner">
+        <strong>Rasmni bu yerga tashlang</strong>
+        <span>yoki bosib tanlang — JPG, PNG, BMP</span>
+      </div>
+      <img id="thumb" alt="" hidden>
+    </div>
+    <p id="fileInfo" class="muted small"></p>
+
+    <h2>2. Ulushlar soni</h2>
+    <label class="row">
+      <span>Nechta bo'lakka bo'linadi (n)</span>
+      <select id="n">
+        <option value="2" selected>2 — kontrast 1/2 (eng yaxshi)</option>
+        <option value="3">3 — kontrast 1/4</option>
+        <option value="4">4 — kontrast 1/8</option>
+        <option value="5">5 — kontrast 1/16 (xira)</option>
+        <option value="6">6 — kontrast 1/32 (juda xira)</option>
+        <option value="7">7 — kontrast 1/64 (amaliy emas)</option>
+        <option value="8">8 — kontrast 1/128 (amaliy emas)</option>
+      </select>
+    </label>
+    <p class="muted small">Rasmni faqat <b>hamma</b> ulush birga ko'rsatadi. Bittasi kam bo'lsa — hech narsa ko'rinmaydi.</p>
+
+    <h2>3. Qog'oz</h2>
+    <label class="row"><span>Format</span><select id="paper"></select></label>
+    <label class="row"><span>Yo'nalish</span>
+      <select id="orientation">
+        <option value="portrait" selected>Bo'yiga (portret)</option>
+        <option value="landscape">Eniga (albom)</option>
+      </select>
+    </label>
+    <label class="row"><span>Joylashuv</span>
+      <select id="mode">
+        <option value="sheet" selected>Hammasi bitta varaqda (yirtib ishlatiladi)</option>
+        <option value="pages">Har bir ulush alohida varaqda (kattaroq)</option>
+      </select>
+    </label>
+
+    <h2>4. Aniqlik</h2>
+    <label class="row range">
+      <span>Modul o'lchami: <output id="moduleOut">0.50</output> mm</span>
+      <input type="range" id="module" min="0.15" max="1.5" step="0.05" value="0.5">
+    </label>
+    <p class="muted small">Katta modul — qo'lda moslash oson, lekin rasm dag'al. Kichik modul — nozik rasm,
+       lekin bo'laklarni juda aniq ustma-ust qo'yish kerak.</p>
+
+    <details>
+      <summary>Qo'shimcha sozlamalar</summary>
+      <label class="row"><span>Chegara (margin), mm</span><input type="number" id="margin" value="8" min="0" max="30" step="1"></label>
+      <label class="row"><span>Yirtish yo'lagi, mm</span><input type="number" id="gutter" value="8" min="0" max="30" step="1"></label>
+      <label class="row"><span>Binarizatsiya</span>
+        <select id="dither">
+          <option value="fs" selected>Floyd–Steinberg (fotolar uchun)</option>
+          <option value="atkinson">Atkinson (kontrastli)</option>
+          <option value="bayer">Bayer (naqshli)</option>
+          <option value="threshold">Oddiy chegara (logotip/matn uchun)</option>
+        </select>
+      </label>
+      <label class="row range"><span>Yorqinlik: <output id="brightOut">0</output></span>
+        <input type="range" id="bright" min="-0.5" max="0.5" step="0.02" value="0"></label>
+      <label class="row range"><span>Kontrast: <output id="contrastOut">0</output></span>
+        <input type="range" id="contrast" min="-0.8" max="0.8" step="0.02" value="0"></label>
+      <label class="row range"><span>Gamma: <output id="gammaOut">1.0</output></span>
+        <input type="range" id="gamma" min="0.4" max="2.5" step="0.05" value="1"></label>
+      <label class="check"><input type="checkbox" id="autoLevels" checked> Avto-darajalar (auto levels)</label>
+      <label class="check"><input type="checkbox" id="invert"> Ranglarni teskari qilish</label>
+    </details>
+
+    <div class="actions">
+      <button id="generate" class="primary" disabled>Ulushlarni yaratish</button>
+      <button id="reshuffle" disabled title="Boshqa tasodifiy naqsh bilan qayta yaratish">Qayta aralashtirish</button>
+    </div>
+    <p id="status" class="status" role="status"></p>
+  </section>
+
+  <!-- ============================= Natijalar ============================ -->
+  <section class="panel results">
+    <div id="empty" class="empty">
+      <p>Rasm yuklab, <b>“Ulushlarni yaratish”</b> tugmasini bosing.</p>
+    </div>
+
+    <div id="output" hidden>
+      <div class="out-head">
+        <h2>Natija</h2>
+        <div class="dl">
+          <button id="pdf" class="primary">PDF yuklab olish</button>
+          <button id="print">Chop etish</button>
+          <button id="zipless">Ulushlarni PNG qilib saqlash</button>
+        </div>
+      </div>
+
+      <div id="warnings" class="warnings" hidden></div>
+      <dl id="info" class="info"></dl>
+
+      <h3>Ustma-ust qo'yilganda shunday ko'rinadi</h3>
+      <div class="sim">
+        <figure>
+          <canvas id="simReal"></canvas>
+          <figcaption>Haqiqiy yorug'lik (chiroq orqadan)</figcaption>
+        </figure>
+        <figure>
+          <canvas id="simNorm"></canvas>
+          <figcaption>Kuchaytirilgan (ko'z bilan tekshirish uchun)</figcaption>
+        </figure>
+        <figure>
+          <canvas id="simSource"></canvas>
+          <figcaption>Manba (binarizatsiyadan keyin)</figcaption>
+        </figure>
+      </div>
+
+      <h3>Ulushlar <span class="muted small">— har biri alohida ma'nosiz shovqin</span></h3>
+      <div id="shares" class="shares"></div>
+
+      <div class="howto" id="howto">
+        <h3>Chop etish va ishlatish</h3>
+        <ol>
+          <li><b>PDF</b> ni yuklab oling va PDF ko'ruvchidan chop eting.</li>
+          <li>Printer sozlamasida masshtab <b>100% / “Actual size”</b> bo'lsin —
+              “Fit to page” yoki “Shrink to fit” <b>o'chirilgan</b> bo'lishi shart, aks holda o'lchamlar buziladi.</li>
+          <li>Iloji bo'lsa lazer printer va zich (80–100 g/m²) qog'oz ishlating; siyoh yoyilmasligi kerak.</li>
+          <li>Punktir chiziq bo'ylab yirtib (yoki kesib) bo'laklarni ajratasiz.</li>
+          <li>Bo'laklarni <b>ramka va burchak belgilari aynan ustma-ust</b> tushadigan qilib joylashtiring.
+              1 modul chamasi siljish ham rasmni yo'q qiladi.</li>
+          <li>Orqadan chiroq (telefon fonari, deraza yorug'ligi) yoqing — rasm ko'rinadi.</li>
+        </ol>
+        <p class="muted small">
+          Maslahat: eng yaxshi natija uchun ulushlarni <b>shaffof plyonkaga</b> (overhead/transparency film) bossangiz,
+          rasm chiroqsiz ham ko'rinadi. Oddiy qog'ozda albatta orqadan yorug'lik kerak.
+        </p>
+        <h3>Nima uchun ishlaydi?</h3>
+        <p class="muted small">
+          Bu — <b>vizual kriptografiya</b> (Naor–Shamir, 1994). Rasmning har bir pikseli
+          m = 2<sup>n-1</sup> ta kichik modulga bo'linadi. Har bir ulushda shu modullarning yarmi qora bo'ladi,
+          shuning uchun bitta ulush tasodifiy shovqindan farq qilmaydi. Ulushlar ustma-ust qo'yilganda
+          qora modullar birlashadi: <b>qora piksel</b> joyida yorug'lik butunlay to'siladi,
+          <b>oq piksel</b> joyida esa aynan bitta modul shaffof qoladi. Natijada rasm
+          1/m kontrast bilan ko'rinadi — shuning uchun n kichik bo'lsa natija yorqinroq.
+        </p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <span>Hammasi brauzerda ishlaydi — rasm hech qayerga yuborilmaydi.</span>
+</footer>
+
+<script type="module" src="src/app.js"></script>
+</body>
+</html>
