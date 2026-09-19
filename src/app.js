@@ -7,11 +7,14 @@ import { prepareBinary } from './image.js';
 import { computeLayout, PAPERS } from './layout.js';
 import { buildSheetPdf } from './sheet.js';
 import { decodeBmp } from './bmp.js';
+import { renderTextToCanvas, FONTS } from './text.js';
 
 const $ = (id) => document.getElementById(id);
 const MAX_SOURCE_SIDE = 2400;
+const TEXT_CANVAS_MAX = 1800; // matn tasviri uchun maksimal tomon (px)
 
 const state = {
+  mode: 'image',     // 'image' | 'text'
   source: null,      // { rgba, width, height, aspect }
   fileName: '',
   result: null,      // { geom, layout, light, binary, n, m }
@@ -87,14 +90,25 @@ async function rgbaFromBitmap(bitmap) {
   return { rgba: data, width: w, height: h, aspect: bitmap.width / bitmap.height };
 }
 
+let loading = false;
+
 async function loadFile(file) {
-  if (!file) return;
-  const okType = /image\/(jpeg|png|bmp|x-ms-bmp)/.test(file.type) || /\.(jpe?g|png|bmp)$/i.test(file.name);
-  if (!okType) {
-    setStatus('Faqat JPG, PNG yoki BMP fayl qo\'llab-quvvatlanadi.', 'err');
+  if (!file) {
+    setStatus('Fayl topilmadi. Rasmni fayl sifatida tashlang yoki “Faylni tanlash” ni bosing.', 'err');
     return;
   }
-  setStatus('Rasm o\'qilmoqda…', 'busy');
+  if (loading) return;
+
+  const byName = /\.(jpe?g|png|bmp|gif|webp|avif)$/i.test(file.name);
+  const byType = /^image\//.test(file.type);
+  if (!byType && !byName) {
+    setStatus(`“${file.name}” rasm fayliga o'xshamaydi. JPG, PNG yoki BMP tanlang.`, 'err');
+    return;
+  }
+
+  loading = true;
+  $('drop').classList.add('busy');
+  setStatus(`“${file.name}” o'qilmoqda…`, 'busy');
   try {
     const buf = await file.arrayBuffer();
     let src;
@@ -112,23 +126,86 @@ async function loadFile(file) {
     state.fileName = file.name;
 
     const thumb = $('thumb');
-    if (thumb.src) URL.revokeObjectURL(thumb.src);
-    thumb.src = URL.createObjectURL(file);
+    if (thumb.dataset.url) URL.revokeObjectURL(thumb.dataset.url);
+    const url = URL.createObjectURL(file);
+    thumb.dataset.url = url;
+    thumb.src = url;
     thumb.hidden = false;
     $('drop').classList.add('has-image');
+    $('change').hidden = false;
     $('fileInfo').textContent = `${file.name} — ${src.width} × ${src.height} px, ${(file.size / 1024).toFixed(0)} KB`;
+    if (state.mode !== 'image') setMode('image'); // rasm tashlandi -> rasm rejimiga o'tamiz
     $('generate').disabled = false;
     setStatus('Rasm tayyor. “Ulushlarni yaratish” tugmasini bosing.');
   } catch (err) {
     console.error(err);
-    setStatus('Rasmni o\'qib bo\'lmadi: ' + err.message, 'err');
+    setStatus(`“${file.name}” ni o'qib bo'lmadi: ${err.message}. Boshqa rasm (JPG/PNG/BMP) bilan urinib ko'ring.`, 'err');
+  } finally {
+    loading = false;
+    $('drop').classList.remove('busy');
   }
+}
+
+/** DataTransfer dan birinchi fayl (files bo'sh bo'lsa items dan olamiz). */
+function fileFromDataTransfer(dt) {
+  if (!dt) return null;
+  if (dt.files && dt.files.length) return dt.files[0];
+  if (dt.items) {
+    for (const item of dt.items) {
+      if (item.kind === 'file') {
+        const f = item.getAsFile();
+        if (f) return f;
+      }
+    }
+  }
+  return null;
 }
 
 /* --------------------------------------------------------------- yaratish */
 
+/* -------------------------------------------------------- matndan tasvir */
+
+/**
+ * Matnni layout bergan bosma maydon nisbatidagi canvas ga chizadi.
+ * Keyingi qadamlar (resample + binarizatsiya) rasm rejimi bilan bir xil.
+ */
+function textSource(layout, o) {
+  const aspect = layout.imageWmm / layout.imageHmm;
+  let w = TEXT_CANVAS_MAX, h = Math.round(TEXT_CANVAS_MAX / aspect);
+  if (h > TEXT_CANVAS_MAX) { h = TEXT_CANVAS_MAX; w = Math.round(TEXT_CANVAS_MAX * aspect); }
+  // Piksel setkasidan kichik bo'lmasin (aks holda mayda detal yo'qoladi)
+  w = Math.max(w, layout.pixelW * 2);
+  h = Math.max(h, layout.pixelH * 2);
+
+  const canvas = document.createElement('canvas');
+  const fit = renderTextToCanvas(canvas, {
+    text: o.text, width: w, height: h,
+    font: o.font, bold: o.bold, align: o.align,
+    padPercent: o.padPercent, lineHeight: o.lineHeight, invert: o.textInvert,
+  });
+  const { data } = canvas.getContext('2d').getImageData(0, 0, w, h);
+  return {
+    src: { rgba: data, width: w, height: h, aspect },
+    text: {
+      fontPx: fit.size,
+      lines: fit.lines.length,
+      // harf balandligi: qog'ozdagi mm va tiklanadigan tasvirdagi piksellar
+      fontMm: (fit.size / h) * layout.imageHmm,
+      fontPixels: (fit.size / h) * layout.pixelH,
+    },
+  };
+}
+
 function readOptions() {
   return {
+    sourceKind: state.mode,
+    text: $('text').value,
+    font: $('font').value,
+    bold: $('bold').checked,
+    align: $('align').value,
+    padPercent: Number($('pad').value),
+    lineHeight: Number($('lineHeight').value),
+    textInvert: $('textInvert').checked,
     n: Number($('n').value),
     paper: $('paper').value,
     orientation: $('orientation').value,
@@ -146,27 +223,46 @@ function readOptions() {
 }
 
 async function generate() {
-  if (!state.source) return;
   const o = readOptions();
+  if (o.sourceKind === 'text') {
+    if (!o.text.trim()) { setStatus('Avval matn yozing.', 'err'); return; }
+  } else if (!state.source) {
+    setStatus('Avval rasm yuklang.', 'err');
+    return;
+  }
   $('generate').disabled = true;
   $('reshuffle').disabled = true;
   setStatus('Hisoblanmoqda…', 'busy');
   await nextFrame();
 
   try {
+    const isText = o.sourceKind === 'text';
     const m = subpixelCount(o.n);
     const bs = blockShape(m);
     const layout = computeLayout({
       paper: o.paper, orientation: o.orientation, n: o.n, mode: o.mode,
       marginMm: o.marginMm, gutterMm: o.gutterMm, moduleMm: o.moduleMm,
-      imgAspect: state.source.aspect, blockRows: bs.rows, blockCols: bs.cols,
+      // Matn uchun nisbat cheklovi yo'q — butun bo'sh maydon ishlatiladi
+      imgAspect: isText ? 1 : state.source.aspect,
+      fill: isText,
+      blockRows: bs.rows, blockCols: bs.cols,
     });
 
-    const { binary } = prepareBinary(
-      state.source.rgba, state.source.width, state.source.height,
-      layout.pixelW, layout.pixelH,
-      { method: o.method, brightness: o.brightness, contrast: o.contrast, gamma: o.gamma, invert: o.invert, autoLevels: o.autoLevels }
-    );
+    let src, textFit = null;
+    if (isText) {
+      const t = textSource(layout, o);
+      src = t.src;
+      textFit = t.text;
+    } else {
+      src = state.source;
+    }
+
+    // Matn allaqachon qora/oq: ditheringsiz aniq chegara eng toza natija beradi
+    const prep = isText
+      ? { method: 'threshold', threshold: 0.5 }
+      : { method: o.method, brightness: o.brightness, contrast: o.contrast, gamma: o.gamma, invert: o.invert, autoLevels: o.autoLevels };
+
+    const { binary } = prepareBinary(src.rgba, src.width, src.height, layout.pixelW, layout.pixelH, prep);
 
     setStatus(`${o.n} ta ulush kodlanmoqda (${(layout.moduleCols * layout.moduleRows / 1e6).toFixed(2)} mln modul)…`, 'busy');
     await nextFrame();
@@ -174,7 +270,7 @@ async function generate() {
     const geom = encodeShares(binary, layout.pixelW, layout.pixelH, o.n, makeRng(state.seed));
     const light = simulateStack(geom.shares, geom);
 
-    state.result = { geom, layout, light, binary, n: o.n, m, options: o };
+    state.result = { geom, layout, light, binary, n: o.n, m, options: o, textFit };
     if (state.pdfUrl) { URL.revokeObjectURL(state.pdfUrl); state.pdfUrl = null; }
 
     render();
@@ -189,14 +285,27 @@ async function generate() {
 }
 
 function render() {
-  const { geom, layout, light, binary, n, m } = state.result;
+  const { geom, layout, light, binary, n, m, textFit } = state.result;
   $('empty').hidden = true;
   $('output').hidden = false;
 
   // Ogohlantirishlar
   const warns = [...layout.warnings];
-  if (n >= 5) warns.push(`n = ${n} bo'lganda o'tgan yorug'lik faqat 1/${m} — oddiy qog'ozda rasmni ko'rish juda qiyin. 2–4 tavsiya etiladi.`);
+  if (n >= 5) warns.push(`n = ${n} bo'lganda o'tgan yorug'lik faqat 1/${m} — oddiy qog'ozda tasvirni ko'rish juda qiyin. 2–4 tavsiya etiladi.`);
   if (layout.moduleMm < 0.3) warns.push('Modul 0.3 mm dan kichik: uy printerlari bunda siyohni yoyib yuborishi mumkin, bo\'laklarni moslash ham qiyin bo\'ladi.');
+  if (textFit) {
+    if (textFit.fontPixels < 9) {
+      warns.push(
+        `Harflar juda kichik chiqdi (balandligi ${textFit.fontPixels.toFixed(1)} piksel, o'qilishi uchun 9+ kerak): ` +
+        'matnni qisqartiring, modul o\'lchamini kichraytiring, kattaroq qog\'oz tanlang yoki ulushlar sonini kamaytiring.'
+      );
+    } else if (textFit.fontPixels < 14) {
+      warns.push(`Harflar chegaraviy o'lchamda (${textFit.fontPixels.toFixed(1)} piksel) — qalin shrift va kamroq matn natijani yaxshilaydi.`);
+    }
+    if (state.result.options.textInvert) {
+      warns.push('“Qora fonda oq harflar” rejimida siyoh ko\'p ketadi va fon yorug\'likni to\'sadi — natija qorong\'iroq ko\'rinadi.');
+    }
+  }
   const wbox = $('warnings');
   wbox.hidden = warns.length === 0;
   wbox.innerHTML = warns.length ? '<ul>' + warns.map((w) => `<li>${w}</li>`).join('') + '</ul>' : '';
@@ -212,6 +321,11 @@ function render() {
     ['Modul', `${layout.moduleMm.toFixed(2)} mm (blok ${geom.blockRows}×${geom.blockCols})`],
     ['Modullar soni', `${(layout.moduleCols * layout.moduleRows / 1e6).toFixed(2)} mln / ulush`],
   ];
+  if (textFit) {
+    rows.splice(4, 0,
+      ['Harf balandligi', `${textFit.fontMm.toFixed(1)} mm (${textFit.fontPixels.toFixed(0)} piksel)`],
+      ['Matn qatorlari', `${textFit.lines} ta`]);
+  }
   $('info').innerHTML = rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
 
   // Simulyatsiyalar.
@@ -250,37 +364,110 @@ function pdfBlob() {
   const { geom, layout, n, m, options } = state.result;
   const bytes = buildSheetPdf({
     shares: geom.shares, moduleCols: geom.width, moduleRows: geom.height, layout,
-    meta: { paper: options.paper, orientation: options.orientation, n, m, fileName: state.fileName },
+    meta: {
+      paper: options.paper, orientation: options.orientation, n, m,
+      fileName: options.sourceKind === 'text' ? 'matn rejimi' : state.fileName,
+    },
   });
   return new Blob([bytes], { type: 'application/pdf' });
 }
 
 function pdfName() {
   const { n, options } = state.result;
-  return `qr-amazing-${n}-ulush-${options.paper}${options.mode === 'pages' ? '-alohida' : ''}.pdf`;
+  const kind = options.sourceKind === 'text' ? '-matn' : '';
+  return `qr-amazing-${n}-ulush-${options.paper}${kind}${options.mode === 'pages' ? '-alohida' : ''}.pdf`;
 }
 
 /* --------------------------------------------------------------- ishga tushirish */
+
+/** Manba rejimini almashtirish: 'image' yoki 'text'. */
+function setMode(mode) {
+  state.mode = mode;
+  const isText = mode === 'text';
+  $('tabImage').classList.toggle('active', !isText);
+  $('tabText').classList.toggle('active', isText);
+  $('tabImage').setAttribute('aria-selected', String(!isText));
+  $('tabText').setAttribute('aria-selected', String(isText));
+  $('paneImage').hidden = isText;
+  $('paneText').hidden = !isText;
+  // Rasmga xos tuzatishlar matn rejimida ma'nosiz (matn allaqachon qora/oq)
+  $('imgAdjust').hidden = isText;
+  $('generate').disabled = isText ? !$('text').value.trim() : !state.source;
+  if (isText) $('text').focus();
+  if (state.result) setStatus('Manba o\'zgardi — “Ulushlarni yaratish” ni qayta bosing.');
+}
 
 function init() {
   // Qog'oz ro'yxati
   $('paper').innerHTML = Object.entries(PAPERS)
     .map(([k, v]) => `<option value="${k}"${k === 'A4' ? ' selected' : ''}>${v.label}</option>`).join('');
 
-  // Fayl kiritish
+  // Shrift ro'yxati
+  $('font').innerHTML = Object.entries(FONTS)
+    .map(([k, v]) => `<option value="${k}"${k === 'sans' ? ' selected' : ''}>${v.label}</option>`).join('');
+
+  // Tablar
+  $('tabImage').addEventListener('click', () => setMode('image'));
+  $('tabText').addEventListener('click', () => setMode('text'));
+  $('text').addEventListener('input', () => {
+    if (state.mode === 'text') $('generate').disabled = !$('text').value.trim();
+  });
+
+  // ------------------------------------------------ fayl tanlash / tashlash
   const drop = $('drop');
-  drop.addEventListener('click', () => $('file').click());
-  drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('file').click(); } });
-  $('file').addEventListener('change', (e) => loadFile(e.target.files[0]));
-  for (const ev of ['dragenter', 'dragover']) {
-    drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); });
-  }
-  for (const ev of ['dragleave', 'drop']) {
-    drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); });
-  }
-  drop.addEventListener('drop', (e) => loadFile(e.dataTransfer.files[0]));
+  const fileInput = $('file');
+
+  const openPicker = () => {
+    // showPicker() aniqroq xato beradi, bo'lmasa oddiy click
+    try {
+      if (typeof fileInput.showPicker === 'function') fileInput.showPicker();
+      else fileInput.click();
+    } catch (err) {
+      fileInput.click();
+    }
+  };
+
+  drop.addEventListener('click', openPicker);
+  drop.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPicker(); }
+  });
+  // Tugma .drop ichida: click ikki marta ishlamasligi uchun to'xtatamiz
+  $('pick').addEventListener('click', (e) => { e.stopPropagation(); openPicker(); });
+  $('change').addEventListener('click', (e) => { e.stopPropagation(); openPicker(); });
+
+  fileInput.addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = ''; // bir xil faylni qayta tanlash ham ishlashi uchun
+    loadFile(f);
+  });
+
+  // Drag & drop: butun sahifada ishlaydi (chetga tushsa ham brauzer faylni ochib ketmaydi)
+  let dragDepth = 0;
+  document.addEventListener('dragenter', (e) => {
+    if (![...(e.dataTransfer?.types || [])].includes('Files')) return;
+    e.preventDefault();
+    dragDepth++;
+    document.body.classList.add('dragging');
+  });
+  document.addEventListener('dragover', (e) => {
+    if (![...(e.dataTransfer?.types || [])].includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    document.body.classList.add('dragging');
+  });
+  document.addEventListener('dragleave', () => {
+    if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dragging'); }
+  });
+  document.addEventListener('drop', (e) => {
+    if (!e.dataTransfer) return;
+    e.preventDefault();
+    dragDepth = 0;
+    document.body.classList.remove('dragging');
+    loadFile(fileFromDataTransfer(e.dataTransfer));
+  });
+
   window.addEventListener('paste', (e) => {
-    const f = [...(e.clipboardData?.files || [])][0];
+    const f = fileFromDataTransfer(e.clipboardData);
     if (f) loadFile(f);
   });
 
@@ -294,6 +481,8 @@ function init() {
   bind('bright', 'brightOut', (v) => v.toFixed(2));
   bind('contrast', 'contrastOut', (v) => v.toFixed(2));
   bind('gamma', 'gammaOut', (v) => v.toFixed(2));
+  bind('pad', 'padOut', (v) => String(v));
+  bind('lineHeight', 'lhOut', (v) => v.toFixed(2));
 
   $('generate').addEventListener('click', () => generate());
   $('reshuffle').addEventListener('click', () => { state.seed = (Math.random() * 1e9) | 0; generate(); });
@@ -329,11 +518,17 @@ function init() {
   });
 
   // Sozlama o'zgarsa — natija eskirgani haqida eslatma
-  for (const id of ['n', 'paper', 'orientation', 'mode', 'module', 'margin', 'gutter', 'dither', 'bright', 'contrast', 'gamma', 'invert', 'autoLevels']) {
+  for (const id of ['n', 'paper', 'orientation', 'mode', 'module', 'margin', 'gutter', 'dither',
+    'bright', 'contrast', 'gamma', 'invert', 'autoLevels',
+    'font', 'align', 'bold', 'textInvert', 'pad', 'lineHeight']) {
     $(id).addEventListener('change', () => {
       if (state.result) setStatus('Sozlama o\'zgardi — “Ulushlarni yaratish” ni qayta bosing.');
     });
   }
 }
 
-init();
+// Ikki marta ishga tushishdan saqlanish (index.html modul + zaxira bundle yo'llari).
+if (!window.__qrInit) {
+  window.__qrInit = true;
+  init();
+}

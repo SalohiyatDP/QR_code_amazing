@@ -12,26 +12,62 @@
     <span class="logo" aria-hidden="true"></span>
     <div>
       <h1>QR Amazing</h1>
-      <p>Rasmni <b>n ta QR-ga o'xshash ulushga</b> bo'ladi. Bitta varaqqa bosiladi, o'rtasidan yirtiladi,
-         bo'laklar burchaklari bo'yicha ustma-ust qo'yiladi va orqadan chiroq yoqilsa — rasm ko'rinadi.</p>
+      <p>Rasm yoki matnni <b>n ta QR-ga o'xshash ulushga</b> bo'ladi. Bitta varaqqa bosiladi, o'rtasidan yirtiladi,
+         bo'laklar burchaklari bo'yicha ustma-ust qo'yiladi va orqadan chiroq yoqilsa — tasvir ko'rinadi.</p>
     </div>
   </div>
   <a class="help-link" href="#howto">Qanday ishlaydi?</a>
 </header>
 
+<div id="bootWarn" class="boot-warn" hidden></div>
+
 <main>
   <!-- ============================ Sozlamalar ============================ -->
   <section class="panel controls">
-    <h2>1. Rasm</h2>
-    <div id="drop" class="drop" tabindex="0">
-      <input type="file" id="file" accept="image/jpeg,image/png,image/bmp,.jpg,.jpeg,.png,.bmp" hidden>
-      <div class="drop-inner">
-        <strong>Rasmni bu yerga tashlang</strong>
-        <span>yoki bosib tanlang — JPG, PNG, BMP</span>
-      </div>
-      <img id="thumb" alt="" hidden>
+    <h2>1. Manba</h2>
+    <div class="tabs" role="tablist">
+      <button type="button" id="tabImage" class="tab active" role="tab" aria-selected="true">Rasm</button>
+      <button type="button" id="tabText" class="tab" role="tab" aria-selected="false">Matn</button>
     </div>
-    <p id="fileInfo" class="muted small"></p>
+
+    <div id="paneImage" role="tabpanel">
+      <!-- Input ataylab .drop dan TASHQARIDA: ichida bo'lsa, programmatik click
+           qayta .drop ga qaytib, fayl tanlash oynasini ikki marta chaqiradi. -->
+      <input type="file" id="file" accept="image/jpeg,image/png,image/bmp,image/*,.jpg,.jpeg,.png,.bmp" hidden>
+      <div id="drop" class="drop" tabindex="0" role="button" aria-label="Rasm tanlash">
+        <div class="drop-inner">
+          <strong>Rasmni bu yerga tashlang</strong>
+          <span>JPG, PNG yoki BMP</span>
+          <button type="button" id="pick" class="pick">Faylni tanlash</button>
+        </div>
+        <img id="thumb" alt="" hidden>
+      </div>
+      <p id="fileInfo" class="muted small"></p>
+      <button type="button" id="change" class="linklike" hidden>Boshqa rasm tanlash</button>
+    </div>
+
+    <div id="paneText" role="tabpanel" hidden>
+      <textarea id="text" rows="5" spellcheck="false"
+                placeholder="Matnni shu yerga yozing.&#10;Masalan: TUG'ILGAN KUNING BILAN!"></textarea>
+      <p class="muted small">
+        <b>Harf o'lchami avtomatik moslashadi:</b> matn kam bo'lsa harflar kattalashadi,
+        ko'p bo'lsa kichrayadi — har doim qog'ozdagi bo'sh joyni to'liq egallaydi.
+      </p>
+      <label class="row"><span>Shrift</span><select id="font"></select></label>
+      <label class="row"><span>Joylashuv</span>
+        <select id="align">
+          <option value="center" selected>Markazda</option>
+          <option value="left">Chapda</option>
+          <option value="right">O'ngda</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="bold" checked> Qalin harflar (tavsiya etiladi)</label>
+      <label class="check"><input type="checkbox" id="textInvert"> Qora fonda oq harflar</label>
+      <label class="row range"><span>Chekka bo'shliq: <output id="padOut">6</output>%</span>
+        <input type="range" id="pad" min="0" max="25" step="1" value="6"></label>
+      <label class="row range"><span>Qator oralig'i: <output id="lhOut">1.20</output></span>
+        <input type="range" id="lineHeight" min="1" max="2" step="0.05" value="1.2"></label>
+    </div>
 
     <h2>2. Ulushlar soni</h2>
     <label class="row">
@@ -75,6 +111,8 @@
       <summary>Qo'shimcha sozlamalar</summary>
       <label class="row"><span>Chegara (margin), mm</span><input type="number" id="margin" value="8" min="0" max="30" step="1"></label>
       <label class="row"><span>Yirtish yo'lagi, mm</span><input type="number" id="gutter" value="8" min="0" max="30" step="1"></label>
+      <!-- Faqat rasm rejimiga tegishli sozlamalar (matn allaqachon qora/oq) -->
+      <div id="imgAdjust">
       <label class="row"><span>Binarizatsiya</span>
         <select id="dither">
           <option value="fs" selected>Floyd–Steinberg (fotolar uchun)</option>
@@ -91,6 +129,7 @@
         <input type="range" id="gamma" min="0.4" max="2.5" step="0.05" value="1"></label>
       <label class="check"><input type="checkbox" id="autoLevels" checked> Avto-darajalar (auto levels)</label>
       <label class="check"><input type="checkbox" id="invert"> Ranglarni teskari qilish</label>
+      </div>
     </details>
 
     <div class="actions">
@@ -103,7 +142,7 @@
   <!-- ============================= Natijalar ============================ -->
   <section class="panel results">
     <div id="empty" class="empty">
-      <p>Rasm yuklab, <b>“Ulushlarni yaratish”</b> tugmasini bosing.</p>
+      <p>Rasm yuklang yoki matn yozing, so'ng <b>“Ulushlarni yaratish”</b> tugmasini bosing.</p>
     </div>
 
     <div id="output" hidden>
@@ -172,6 +211,52 @@
   <span>Hammasi brauzerda ishlaydi — rasm hech qayerga yuborilmaydi.</span>
 </footer>
 
-<script type="module" src="src/app.js"></script>
+<!-- LOADER:START (build.mjs bu blokni bitta faylli versiyada bundle bilan almashtiradi) -->
+<script>
+/* Yuklovchi.
+   http(s) da  -> src/*.js ES modullari (ishlab chiqish uchun qulay).
+   file:// da  -> brauzer modullarni CORS siyosati tufayli bloklaydi,
+                  shuning uchun darhol klassik bundle yuklanadi
+                  (klassik skriptlarga bu cheklov qo'llanmaydi).
+   app.js ikki marta ishga tushmaydi: window.__qrInit qo'riqlaydi. */
+(function () {
+  function ready() {
+    var p = document.getElementById('paper');
+    return !!p && p.options.length > 0;
+  }
+  function warn(extra) {
+    var w = document.getElementById('bootWarn');
+    if (!w || !w.hidden) return;
+    w.hidden = false;
+    w.innerHTML = '<b>Ilova ishga tushmadi.</b> ' + (extra || '') +
+      ' Ishlaydigan variant: <a href="dist/qr-amazing.html"><b>dist/qr-amazing.html</b></a>' +
+      ' (bitta faylli versiya, server kerak emas), yoki lokal server: <code>python3 -m http.server 8000</code>';
+  }
+  function loadClassic(onFail) {
+    var s = document.createElement('script');
+    s.src = 'dist/qr-amazing.js';
+    s.onload = function () { setTimeout(function () { if (!ready()) warn('Skript yuklandi, lekin ishga tushmadi.'); }, 150); };
+    s.onerror = onFail;
+    document.head.appendChild(s);
+  }
+
+  if (location.protocol === 'file:') {
+    loadClassic(function () {
+      warn('<code>dist/qr-amazing.js</code> topilmadi — <code>node build.mjs</code> ni ishga tushiring.');
+    });
+    return;
+  }
+
+  var m = document.createElement('script');
+  m.type = 'module';
+  m.src = 'src/app.js';
+  m.onerror = function () { loadClassic(function () { warn('Skriptlarni yuklab bo\'lmadi.'); }); };
+  document.head.appendChild(m);
+  setTimeout(function () {
+    if (!ready()) loadClassic(function () { warn('Skriptlarni yuklab bo\'lmadi (konsolni F12 bilan tekshiring).'); });
+  }, 1200);
+})();
+</script>
+<!-- LOADER:END -->
 </body>
 </html>

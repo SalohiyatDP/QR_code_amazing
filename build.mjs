@@ -7,12 +7,20 @@
  *
  * Ishga tushirish:  node build.mjs
  */
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
-const MODULES = ['vc.js', 'image.js', 'layout.js', 'pdf.js', 'sheet.js', 'bmp.js', 'app.js'];
+// Tartib muhim: bog'liqliklar birinchi, app.js oxirida.
+const MODULES = ['vc.js', 'image.js', 'text.js', 'layout.js', 'pdf.js', 'sheet.js', 'bmp.js', 'app.js'];
+
+// Yangi modul qo'shilib, ro'yxatga kiritilmasa — bundle jimgina buziladi.
+const onDisk = readdirSync(join(ROOT, 'src')).filter((f) => f.endsWith('.js')).sort();
+const missing = onDisk.filter((f) => !MODULES.includes(f));
+if (missing.length) {
+  throw new Error(`src/ ichidagi modullar MODULES ro'yxatiga qo'shilmagan: ${missing.join(', ')}`);
+}
 
 /** import satrlarini olib tashlab, export kalit so'zini yechadi. */
 function flatten(src, name) {
@@ -44,10 +52,15 @@ for (let i = 0; i < MODULES.length; i++) {
 const css = readFileSync(join(ROOT, 'styles.css'), 'utf8');
 let html = readFileSync(join(ROOT, 'index.html'), 'utf8');
 
+const before = html;
 html = html
   .replace('<link rel="stylesheet" href="styles.css">', `<style>\n${css}\n</style>`)
-  .replace('<script type="module" src="src/app.js"></script>', `<script>\n${bundle}\n</script>`)
+  .replace(/<!-- LOADER:START[\s\S]*?<!-- LOADER:END -->/, `<script>\n${bundle}\n</script>`)
   .replace('</title>', '</title>\n<!-- Bitta faylli versiya: node build.mjs orqali yig\'ilgan -->');
+
+if (html === before || html.includes('LOADER:START')) {
+  throw new Error('index.html ichidagi yuklovchi blok almashtirilmadi');
+}
 
 if (/<link[^>]+styles\.css/.test(html) || /<script[^>]+src=/.test(html)) {
   throw new Error('HTML ichidagi havolalar almashtirilmadi');
@@ -57,6 +70,14 @@ if (/<\/script>/i.test(bundle)) {
 }
 
 mkdirSync(join(ROOT, 'dist'), { recursive: true });
-const outPath = join(ROOT, 'dist', 'qr-amazing.html');
-writeFileSync(outPath, html);
-console.log(`Yig'ildi: dist/qr-amazing.html (${(html.length / 1024).toFixed(0)} KB, ${names.size} ta yuqori darajali nom)`);
+writeFileSync(join(ROOT, 'dist', 'qr-amazing.html'), html);
+
+// Klassik (module bo'lmagan) bundle: index.html file:// orqali ochilganda
+// zaxira sifatida yuklanadi — klassik skriptlarga CORS cheklovi qo'llanmaydi.
+const classic = `/* Avtomatik yig'ilgan fayl — tahrirlamang. Manba: src/*.js, yig'uvchi: build.mjs */\n${bundle}`;
+writeFileSync(join(ROOT, 'dist', 'qr-amazing.js'), classic);
+
+console.log(
+  `Yig'ildi: dist/qr-amazing.html (${(html.length / 1024).toFixed(0)} KB) va ` +
+  `dist/qr-amazing.js (${(classic.length / 1024).toFixed(0)} KB), ${names.size} ta yuqori darajali nom`
+);

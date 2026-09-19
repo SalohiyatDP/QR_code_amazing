@@ -66,6 +66,28 @@ main {
 .muted { color: var(--muted); }
 .small { font-size: 12.5px; }
 
+/* --------------------------------- tablar -------------------------------- */
+.tabs {
+  display: flex; gap: 4px; margin-bottom: 12px;
+  background: #0d1117; border: 1px solid var(--line);
+  border-radius: 9px; padding: 4px;
+}
+.tab {
+  flex: 1; background: transparent; border: none; color: var(--muted);
+  padding: 7px 10px; border-radius: 6px; font-size: 13.5px; font-weight: 600;
+}
+.tab:hover:not(.active) { background: #171e27; color: var(--text); border: none; }
+.tab.active { background: var(--accent2); color: #fff; }
+
+textarea {
+  width: 100%; min-height: 104px; resize: vertical;
+  background: #0d1117; color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 9px 10px; font: inherit; font-size: 14px; line-height: 1.45;
+}
+textarea:focus { outline: none; border-color: var(--accent); }
+textarea::placeholder { color: #66727f; }
+
 /* ------------------------------- kiritish ------------------------------- */
 .drop {
   border: 1.5px dashed #39424f; border-radius: 10px;
@@ -80,6 +102,26 @@ main {
 .drop-inner span { color: var(--muted); font-size: 12.5px; }
 .drop img { max-width: 100%; max-height: 190px; border-radius: 6px; display: block; }
 .drop.has-image .drop-inner { display: none; }
+.drop.busy { opacity: .6; pointer-events: none; }
+.pick {
+  margin-top: 6px; justify-self: center;
+  background: #24303e; border-color: #3b4859;
+}
+.linklike {
+  background: none; border: none; color: var(--accent); padding: 2px 0;
+  font-size: 12.5px; text-decoration: underline; cursor: pointer;
+}
+.linklike:hover { color: #7fc0ff; background: none; border: none; }
+
+body.dragging .drop { border-color: var(--accent); background: #1b2531; }
+
+.boot-warn {
+  margin: 14px clamp(14px, 3vw, 32px) 0;
+  border: 1px solid #7a2c2c; background: #2a1517; color: #ffb3ad;
+  border-radius: 10px; padding: 12px 14px; font-size: 13.5px; line-height: 1.6;
+}
+.boot-warn a { color: #ffd9d5; }
+.boot-warn code { background: #3a1f21; padding: 1px 5px; border-radius: 4px; }
 
 label.row {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
