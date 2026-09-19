@@ -22,20 +22,26 @@ Bitta bo'lakning o'zi ma'nosiz shovqin: rasm faqat **barcha n ta ulush birga** b
 
 ## Tez boshlash
 
-Uchta yo'ldan birini tanlang — o'rnatish, `npm install` va internet kerak emas.
+O'rnatish, `npm install` va internet kerak emas — istalgan yo'lni tanlang:
 
-**1. Bitta fayl (eng oson).** `dist/qr-amazing.html` faylini yuklab olib, brauzerda ochasiz.
-Hammasi (CSS va JS) shu faylning ichida, shuning uchun server kerak emas.
+**1. Bitta fayl (eng oson).** `dist/qr-amazing.html` ni yuklab olib brauzerda ochasiz.
+CSS va JS shu faylning ichida, shuning uchun server kerak emas.
 
-**2. Lokal server** (ishlab chiqish uchun — modullar `src/` ichida alohida turadi):
+**2. Repozitoriyani yuklab olib `index.html` ni ochish.** Bu ham ishlaydi:
+`file://` orqali brauzer ES modullarni bloklaganda sahifa avtomatik ravishda
+`dist/qr-amazing.js` (klassik bundle) ga o'tadi.
+
+**3. Lokal server** (ishlab chiqish uchun — modullar `src/` ichida alohida turadi):
 
 ```bash
 python3 -m http.server 8000
 # so'ng brauzerda: http://localhost:8000/index.html
 ```
 
-**3. GitHub Pages.** Repozitoriya sozlamalarida Pages ni `main` branch / root papkaga ulasangiz,
-`index.html` to'g'ridan-to'g'ri ishlaydi.
+**4. GitHub Pages.** Pages ni `main` branch / root papkaga ulasangiz, `index.html` to'g'ridan-to'g'ri ishlaydi.
+
+Rasmni yuklashning uch usuli: **“Faylni tanlash”** tugmasi, rasmni **sahifaning istalgan joyiga tashlash**,
+yoki **Ctrl/Cmd + V** bilan qo'yish.
 
 Rasm hech qayerga yuborilmaydi — barcha hisob-kitob brauzerning o'zida bajariladi.
 
@@ -114,7 +120,7 @@ chunki qog'ozning o'zi yorug'likni tarqatadi va kontrastni pasaytiradi.
 ## Loyiha tuzilishi
 
 ```
-index.html              UI (ES modullar bilan, lokal server orqali ochiladi)
+index.html              UI; yuklovchi http(s) da modullarni, file:// da bundle ni oladi
 styles.css              Uslublar
 src/
   vc.js                 (n,n) vizual kriptografiya: matritsalar, kodlash, simulyatsiya
@@ -124,11 +130,13 @@ src/
   sheet.js              layout + ulushlar -> chop etishga tayyor PDF
   bmp.js                zaxira BMP dekoderi
   app.js                UI mantiqi
-build.mjs               dist/qr-amazing.html ni yig'adi (bitta fayl)
-dist/qr-amazing.html    serversiz ochiladigan versiya
+build.mjs               dist/ ni yig'adi (bitta HTML + klassik bundle)
+dist/qr-amazing.html    serversiz ochiladigan bitta faylli versiya
+dist/qr-amazing.js      index.html uchun zaxira klassik bundle
 test/
   run-tests.mjs         yadro testlari (Node)
   browser-e2e.js        brauzerdagi to'liq tekshiruv skripti
+  upload-debug.js       rasm yuklash yo'llarini tekshirish skripti
   png.mjs               testlar natijasini PNG qilib yozish
 ```
 
@@ -158,6 +166,11 @@ Testlar quyidagilarni isbotlaydi:
 Brauzer tekshiruvi (agent-browser yoki Playwright bilan):
 
 ```bash
+# to'liq yo'l: yuklash -> yaratish -> PDF -> n=4 -> BMP/JPEG -> n=8
 agent-browser --session x open "file://$PWD/dist/qr-amazing.html" \
   && agent-browser --session x eval --stdin < test/browser-e2e.js
+
+# faqat rasm yuklash yo'llari (tugma, drag&drop, takroriy tanlash, xato fayl)
+agent-browser --session y open "file://$PWD/index.html" \
+  && agent-browser --session y eval --stdin < test/upload-debug.js
 ```

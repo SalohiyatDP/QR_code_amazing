@@ -19,19 +19,25 @@
   <a class="help-link" href="#howto">Qanday ishlaydi?</a>
 </header>
 
+<div id="bootWarn" class="boot-warn" hidden></div>
+
 <main>
   <!-- ============================ Sozlamalar ============================ -->
   <section class="panel controls">
     <h2>1. Rasm</h2>
-    <div id="drop" class="drop" tabindex="0">
-      <input type="file" id="file" accept="image/jpeg,image/png,image/bmp,.jpg,.jpeg,.png,.bmp" hidden>
+    <!-- Input ataylab .drop dan TASHQARIDA: ichida bo'lsa, programmatik click
+         qayta .drop ga qaytib, fayl tanlash oynasini ikki marta chaqiradi. -->
+    <input type="file" id="file" accept="image/jpeg,image/png,image/bmp,image/*,.jpg,.jpeg,.png,.bmp" hidden>
+    <div id="drop" class="drop" tabindex="0" role="button" aria-label="Rasm tanlash">
       <div class="drop-inner">
         <strong>Rasmni bu yerga tashlang</strong>
-        <span>yoki bosib tanlang — JPG, PNG, BMP</span>
+        <span>JPG, PNG yoki BMP</span>
+        <button type="button" id="pick" class="pick">Faylni tanlash</button>
       </div>
       <img id="thumb" alt="" hidden>
     </div>
     <p id="fileInfo" class="muted small"></p>
+    <button type="button" id="change" class="linklike" hidden>Boshqa rasm tanlash</button>
 
     <h2>2. Ulushlar soni</h2>
     <label class="row">
@@ -172,6 +178,52 @@
   <span>Hammasi brauzerda ishlaydi — rasm hech qayerga yuborilmaydi.</span>
 </footer>
 
-<script type="module" src="src/app.js"></script>
+<!-- LOADER:START (build.mjs bu blokni bitta faylli versiyada bundle bilan almashtiradi) -->
+<script>
+/* Yuklovchi.
+   http(s) da  -> src/*.js ES modullari (ishlab chiqish uchun qulay).
+   file:// da  -> brauzer modullarni CORS siyosati tufayli bloklaydi,
+                  shuning uchun darhol klassik bundle yuklanadi
+                  (klassik skriptlarga bu cheklov qo'llanmaydi).
+   app.js ikki marta ishga tushmaydi: window.__qrInit qo'riqlaydi. */
+(function () {
+  function ready() {
+    var p = document.getElementById('paper');
+    return !!p && p.options.length > 0;
+  }
+  function warn(extra) {
+    var w = document.getElementById('bootWarn');
+    if (!w || !w.hidden) return;
+    w.hidden = false;
+    w.innerHTML = '<b>Ilova ishga tushmadi.</b> ' + (extra || '') +
+      ' Ishlaydigan variant: <a href="dist/qr-amazing.html"><b>dist/qr-amazing.html</b></a>' +
+      ' (bitta faylli versiya, server kerak emas), yoki lokal server: <code>python3 -m http.server 8000</code>';
+  }
+  function loadClassic(onFail) {
+    var s = document.createElement('script');
+    s.src = 'dist/qr-amazing.js';
+    s.onload = function () { setTimeout(function () { if (!ready()) warn('Skript yuklandi, lekin ishga tushmadi.'); }, 150); };
+    s.onerror = onFail;
+    document.head.appendChild(s);
+  }
+
+  if (location.protocol === 'file:') {
+    loadClassic(function () {
+      warn('<code>dist/qr-amazing.js</code> topilmadi — <code>node build.mjs</code> ni ishga tushiring.');
+    });
+    return;
+  }
+
+  var m = document.createElement('script');
+  m.type = 'module';
+  m.src = 'src/app.js';
+  m.onerror = function () { loadClassic(function () { warn('Skriptlarni yuklab bo\'lmadi.'); }); };
+  document.head.appendChild(m);
+  setTimeout(function () {
+    if (!ready()) loadClassic(function () { warn('Skriptlarni yuklab bo\'lmadi (konsolni F12 bilan tekshiring).'); });
+  }, 1200);
+})();
+</script>
+<!-- LOADER:END -->
 </body>
 </html>

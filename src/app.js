@@ -87,14 +87,25 @@ async function rgbaFromBitmap(bitmap) {
   return { rgba: data, width: w, height: h, aspect: bitmap.width / bitmap.height };
 }
 
+let loading = false;
+
 async function loadFile(file) {
-  if (!file) return;
-  const okType = /image\/(jpeg|png|bmp|x-ms-bmp)/.test(file.type) || /\.(jpe?g|png|bmp)$/i.test(file.name);
-  if (!okType) {
-    setStatus('Faqat JPG, PNG yoki BMP fayl qo\'llab-quvvatlanadi.', 'err');
+  if (!file) {
+    setStatus('Fayl topilmadi. Rasmni fayl sifatida tashlang yoki “Faylni tanlash” ni bosing.', 'err');
     return;
   }
-  setStatus('Rasm o\'qilmoqda…', 'busy');
+  if (loading) return;
+
+  const byName = /\.(jpe?g|png|bmp|gif|webp|avif)$/i.test(file.name);
+  const byType = /^image\//.test(file.type);
+  if (!byType && !byName) {
+    setStatus(`“${file.name}” rasm fayliga o'xshamaydi. JPG, PNG yoki BMP tanlang.`, 'err');
+    return;
+  }
+
+  loading = true;
+  $('drop').classList.add('busy');
+  setStatus(`“${file.name}” o'qilmoqda…`, 'busy');
   try {
     const buf = await file.arrayBuffer();
     let src;
@@ -112,17 +123,38 @@ async function loadFile(file) {
     state.fileName = file.name;
 
     const thumb = $('thumb');
-    if (thumb.src) URL.revokeObjectURL(thumb.src);
-    thumb.src = URL.createObjectURL(file);
+    if (thumb.dataset.url) URL.revokeObjectURL(thumb.dataset.url);
+    const url = URL.createObjectURL(file);
+    thumb.dataset.url = url;
+    thumb.src = url;
     thumb.hidden = false;
     $('drop').classList.add('has-image');
+    $('change').hidden = false;
     $('fileInfo').textContent = `${file.name} — ${src.width} × ${src.height} px, ${(file.size / 1024).toFixed(0)} KB`;
     $('generate').disabled = false;
     setStatus('Rasm tayyor. “Ulushlarni yaratish” tugmasini bosing.');
   } catch (err) {
     console.error(err);
-    setStatus('Rasmni o\'qib bo\'lmadi: ' + err.message, 'err');
+    setStatus(`“${file.name}” ni o'qib bo'lmadi: ${err.message}. Boshqa rasm (JPG/PNG/BMP) bilan urinib ko'ring.`, 'err');
+  } finally {
+    loading = false;
+    $('drop').classList.remove('busy');
   }
+}
+
+/** DataTransfer dan birinchi fayl (files bo'sh bo'lsa items dan olamiz). */
+function fileFromDataTransfer(dt) {
+  if (!dt) return null;
+  if (dt.files && dt.files.length) return dt.files[0];
+  if (dt.items) {
+    for (const item of dt.items) {
+      if (item.kind === 'file') {
+        const f = item.getAsFile();
+        if (f) return f;
+      }
+    }
+  }
+  return null;
 }
 
 /* --------------------------------------------------------------- yaratish */
@@ -267,20 +299,61 @@ function init() {
   $('paper').innerHTML = Object.entries(PAPERS)
     .map(([k, v]) => `<option value="${k}"${k === 'A4' ? ' selected' : ''}>${v.label}</option>`).join('');
 
-  // Fayl kiritish
+  // ------------------------------------------------ fayl tanlash / tashlash
   const drop = $('drop');
-  drop.addEventListener('click', () => $('file').click());
-  drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('file').click(); } });
-  $('file').addEventListener('change', (e) => loadFile(e.target.files[0]));
-  for (const ev of ['dragenter', 'dragover']) {
-    drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); });
-  }
-  for (const ev of ['dragleave', 'drop']) {
-    drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); });
-  }
-  drop.addEventListener('drop', (e) => loadFile(e.dataTransfer.files[0]));
+  const fileInput = $('file');
+
+  const openPicker = () => {
+    // showPicker() aniqroq xato beradi, bo'lmasa oddiy click
+    try {
+      if (typeof fileInput.showPicker === 'function') fileInput.showPicker();
+      else fileInput.click();
+    } catch (err) {
+      fileInput.click();
+    }
+  };
+
+  drop.addEventListener('click', openPicker);
+  drop.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPicker(); }
+  });
+  // Tugma .drop ichida: click ikki marta ishlamasligi uchun to'xtatamiz
+  $('pick').addEventListener('click', (e) => { e.stopPropagation(); openPicker(); });
+  $('change').addEventListener('click', (e) => { e.stopPropagation(); openPicker(); });
+
+  fileInput.addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = ''; // bir xil faylni qayta tanlash ham ishlashi uchun
+    loadFile(f);
+  });
+
+  // Drag & drop: butun sahifada ishlaydi (chetga tushsa ham brauzer faylni ochib ketmaydi)
+  let dragDepth = 0;
+  document.addEventListener('dragenter', (e) => {
+    if (![...(e.dataTransfer?.types || [])].includes('Files')) return;
+    e.preventDefault();
+    dragDepth++;
+    document.body.classList.add('dragging');
+  });
+  document.addEventListener('dragover', (e) => {
+    if (![...(e.dataTransfer?.types || [])].includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    document.body.classList.add('dragging');
+  });
+  document.addEventListener('dragleave', () => {
+    if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dragging'); }
+  });
+  document.addEventListener('drop', (e) => {
+    if (!e.dataTransfer) return;
+    e.preventDefault();
+    dragDepth = 0;
+    document.body.classList.remove('dragging');
+    loadFile(fileFromDataTransfer(e.dataTransfer));
+  });
+
   window.addEventListener('paste', (e) => {
-    const f = [...(e.clipboardData?.files || [])][0];
+    const f = fileFromDataTransfer(e.clipboardData);
     if (f) loadFile(f);
   });
 
@@ -336,4 +409,8 @@ function init() {
   }
 }
 
-init();
+// Ikki marta ishga tushishdan saqlanish (index.html modul + zaxira bundle yo'llari).
+if (!window.__qrInit) {
+  window.__qrInit = true;
+  init();
+}
