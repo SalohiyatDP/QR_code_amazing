@@ -12,6 +12,7 @@ import {
   encodeShares, stackShares, simulateStack,
 } from '../src/vc.js';
 import { prepareBinary, rgbaToLuma, resample, dither } from '../src/image.js';
+import { fitText, wrapLines, FONTS } from '../src/text.js';
 import { computeLayout, PAPERS } from '../src/layout.js';
 import { buildPdf, packOneBit } from '../src/pdf.js';
 import { buildSheetDoc, buildSheetPdf } from '../src/sheet.js';
@@ -142,6 +143,88 @@ section('3) Rasmni tayyorlash');
   check('qorayaqin soha -> deyarli hammasi siyoh', dark.reduce((s, v) => s + v, 0) / 64 > 0.9);
   const light = dither(new Float32Array(64).fill(0.95), 8, 8, 'fs');
   check('oqqa yaqin soha -> deyarli siyohsiz', light.reduce((s, v) => s + v, 0) / 64 < 0.1);
+}
+
+/* --------------------------------------------- 3b. text.js (avtomatik masshtab) */
+section('3b) Matn: qatorlarga bo\'lish va avtomatik shrift o\'lchami');
+{
+  // Sinov uchun "monospace" o'lchagich: har bir belgi kengligi = 0.6 * size
+  const measure = (t, size) => t.length * size * 0.6;
+  const LH = 1.2;
+  const box = { boxW: 600, boxH: 400, lineHeight: LH, measure };
+
+  const fits = (r) => {
+    const h = r.lines.length * r.size * LH;
+    const w = Math.max(...r.lines.map((l) => measure(l, r.size)), 0);
+    return h <= box.boxH + 1e-9 && w <= box.boxW + 1e-9;
+  };
+
+  const short = fitText({ ...box, text: 'SALOM' });
+  const medium = fitText({ ...box, text: 'Salom dunyo, bu vizual kriptografiya sinovi' });
+  const long = fitText({ ...box, text: 'Salom dunyo. '.repeat(30) });
+
+  check(`kam matn -> katta shrift (${short.size}px), ko'p matn -> kichik (${long.size}px)`,
+    short.size > medium.size && medium.size > long.size, `${short.size} / ${medium.size} / ${long.size}`);
+  check('qisqa matn maydonga sig\'adi', fits(short));
+  check('o\'rtacha matn maydonga sig\'adi', fits(medium));
+  check('uzun matn maydonga sig\'adi', fits(long));
+
+  // Eng kattalik: +1 px da endi sig'masligi kerak
+  const plusOne = wrapLines('Salom dunyo, bu vizual kriptografiya sinovi', medium.size + 1, box.boxW, measure);
+  const tooBig = plusOne.length * (medium.size + 1) * LH > box.boxH
+    || Math.max(...plusOne.map((l) => measure(l, medium.size + 1))) > box.boxW;
+  check('topilgan o\'lcham eng kattasi (1px kattasi sig\'maydi)', tooBig);
+
+  // Maydon kattalashsa shrift ham kattalashadi
+  const big = fitText({ ...box, boxW: 1200, boxH: 800, text: 'Salom dunyo, bu vizual kriptografiya sinovi' });
+  check(`maydon 2 barobar -> shrift kattalashadi (${medium.size} -> ${big.size})`, big.size > medium.size);
+
+  // Aniq qator ko'chirishlar saqlanadi
+  const nl = fitText({ ...box, text: 'BIR\nIKKI\nUCH' });
+  check('\\n bo\'yicha aynan 3 qator', nl.lines.length === 3 && nl.lines[1] === 'IKKI', JSON.stringify(nl.lines));
+
+  // Bo'sh qator ham saqlanadi
+  const blank = fitText({ ...box, text: 'A\n\nB' });
+  check('bo\'sh qator saqlanadi', blank.lines.length === 3 && blank.lines[1] === '', JSON.stringify(blank.lines));
+
+  // Juda uzun so'z bo'linadi va sig'adi
+  const longWord = fitText({ ...box, text: 'A'.repeat(300) });
+  check('uzun so\'z bo\'linadi va sig\'adi', longWord.lines.length > 1 && fits(longWord), JSON.stringify([longWord.size, longWord.lines.length]));
+
+  // Bo'sh matn
+  const empty = fitText({ ...box, text: '   \n  ' });
+  check('bo\'sh matn -> o\'lcham 0', empty.size === 0 && empty.lines.length === 0);
+
+  // wrapLines hech qachon kenglikdan oshmaydi (bir belgili holatdan tashqari)
+  const wrapped = wrapLines('bir ikki uch to\'rt besh olti yetti sakkiz to\'qqiz o\'n', 20, 120, measure);
+  check('wrapLines qatorlari kenglikka sig\'adi', wrapped.every((l) => measure(l, 20) <= 120), JSON.stringify(wrapped));
+
+  // Juda kichik maydon ham ishlaydi (cheksiz tsikl yoki xato bo'lmasin)
+  const tiny = fitText({ boxW: 5, boxH: 5, lineHeight: LH, measure, text: 'Salom dunyo' });
+  check('juda kichik maydonda ham natija qaytadi', tiny.size >= 1 && tiny.lines.length > 0);
+}
+
+/* --------------------------------- 3c. layout.js fill rejimi (matn uchun) */
+section('3c) Matn uchun "fill" rejimi');
+{
+  const n = 2;
+  const bs = blockShape(subpixelCount(n));
+  const base = { paper: 'A4', orientation: 'portrait', n, mode: 'sheet', moduleMm: 0.5, blockRows: bs.rows, blockCols: bs.cols };
+  const img = computeLayout({ ...base, imgAspect: 1 });
+  const fill = computeLayout({ ...base, imgAspect: 1, fill: true });
+  check(`fill maydoni kattaroq (${(img.imageWmm * img.imageHmm / 100).toFixed(0)} -> ${(fill.imageWmm * fill.imageHmm / 100).toFixed(0)} cm²)`,
+    fill.imageWmm * fill.imageHmm > img.imageWmm * img.imageHmm);
+  check('fill: ulushlar varaq ichida', fill.placements.every((p) => p.frameX >= 0 && p.frameY >= 0
+    && p.frameX + p.frameW <= fill.pageW + 1e-6 && p.frameY + p.frameH <= fill.pageH + 1e-6));
+  for (let k = 2; k <= 8; k++) {
+    const b = blockShape(subpixelCount(k));
+    const l = computeLayout({ paper: 'A4', orientation: 'portrait', n: k, mode: 'sheet', moduleMm: 0.4, imgAspect: 1, fill: true, blockRows: b.rows, blockCols: b.cols });
+    const ok = l.placements.length === k
+      && l.placements.every((p) => p.frameX >= 0 && p.frameX + p.frameW <= l.pageW + 1e-6 && p.frameY + p.frameH <= l.pageH + 1e-6)
+      && l.moduleCols * l.moduleRows <= 6.5e6;
+    if (!ok) check(`fill n=${k}`, false, JSON.stringify({ w: l.imageWmm, h: l.imageHmm }));
+  }
+  check('fill: n = 2..8 uchun joylashuv yaroqli', true);
 }
 
 /* ------------------------------------------------------------ 4. layout.js */

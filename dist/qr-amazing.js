@@ -294,6 +294,155 @@ function prepareBinary(rgba, sw, sh, pixelW, pixelH, opts = {}) {
   return { binary: dither(tuned, pixelW, pixelH, opts.method || 'fs', opts.threshold ?? 0.5), gray: tuned };
 }
 
+/* ===== src/text.js ===== */
+/**
+ * Matndan tasvir yasash: qatorlarga bo'lish va **avtomatik shrift o'lchami**.
+ *
+ * Asosiy g'oya: matn ko'p bo'lsa harflar kichrayadi, kam bo'lsa kattalashadi —
+ * ya'ni har doim berilgan maydonni to'liq egallaydi. O'lcham binar izlash
+ * (binary search) bilan topiladi: eng katta shunday o'lcham-ki, matn hali ham
+ * maydonga sig'adi.
+ *
+ * O'lchash funksiyasi (`measure`) tashqaridan beriladi, shuning uchun mantiqni
+ * brauzersiz (Node testlarida) ham tekshirish mumkin.
+ */
+
+const FONTS = {
+  sans: { label: 'Sans (Arial)', css: 'Arial, Helvetica, "Liberation Sans", sans-serif' },
+  serif: { label: 'Serif (Georgia)', css: 'Georgia, "Times New Roman", "Liberation Serif", serif' },
+  mono: { label: 'Monospace', css: '"Courier New", "Liberation Mono", monospace' },
+  system: { label: 'Tizim shrifti', css: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' },
+};
+
+/**
+ * Matnni berilgan kenglikka sig'adigan qatorlarga bo'ladi.
+ * Aniq qator ko'chirishlar (\n) saqlanadi, uzun so'zlar zarur bo'lsa bo'linadi.
+ *
+ * @param {string} text
+ * @param {number} size          shrift o'lchami
+ * @param {number} maxWidth      ruxsat etilgan kenglik
+ * @param {(t: string, size: number) => number} measure
+ * @returns {string[]}
+ */
+function wrapLines(text, size, maxWidth, measure) {
+  const out = [];
+  const paragraphs = String(text).replace(/\r\n?/g, '\n').split('\n');
+
+  for (const para of paragraphs) {
+    const words = para.split(/[ \t]+/).filter(Boolean);
+    if (!words.length) { out.push(''); continue; }
+
+    let line = '';
+    for (let word of words) {
+      // Bitta so'zning o'zi sig'masa — bo'g'inlab (belgilab) bo'lamiz
+      while (measure(word, size) > maxWidth && word.length > 1) {
+        let k = 1;
+        while (k < word.length && measure(word.slice(0, k + 1), size) <= maxWidth) k++;
+        if (line) { out.push(line); line = ''; }
+        out.push(word.slice(0, k));
+        word = word.slice(k);
+      }
+      if (!word) continue;
+
+      const candidate = line ? line + ' ' + word : word;
+      if (measure(candidate, size) <= maxWidth) {
+        line = candidate;
+      } else {
+        if (line) out.push(line);
+        line = word;
+      }
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+/**
+ * Maydonga sig'adigan eng katta shrift o'lchamini topadi.
+ *
+ * @param {object} o
+ * @param {string} o.text
+ * @param {number} o.boxW         maydon kengligi (px)
+ * @param {number} o.boxH         maydon balandligi (px)
+ * @param {number} [o.lineHeight] qator qadami (shrift o'lchamiga nisbatan)
+ * @param {(t: string, size: number) => number} o.measure
+ * @param {number} [o.maxSize]
+ * @returns {{ size: number, lines: string[], width: number, height: number }}
+ */
+function fitText({ text, boxW, boxH, lineHeight = 1.2, measure, maxSize }) {
+  const clean = String(text ?? '');
+  if (!clean.trim()) return { size: 0, lines: [], width: 0, height: 0 };
+
+  const widest = (lines, size) => lines.reduce((mx, l) => Math.max(mx, l ? measure(l, size) : 0), 0);
+  const upper = Math.max(2, Math.floor(maxSize ?? boxH));
+
+  let lo = 1, hi = upper, best = null;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const lines = wrapLines(clean, mid, boxW, measure);
+    const height = lines.length * mid * lineHeight;
+    const width = widest(lines, mid);
+    if (height <= boxH && width <= boxW) {
+      best = { size: mid, lines, width, height };
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+
+  if (!best) {
+    // Hatto 1 px ham sig'masa (juda kichik maydon) — eng kichigini qaytaramiz
+    const lines = wrapLines(clean, 1, Math.max(1, boxW), measure);
+    best = { size: 1, lines, width: widest(lines, 1), height: lines.length * lineHeight };
+  }
+  return best;
+}
+
+/**
+ * Matnni canvas ga chizadi (faqat brauzer).
+ * Maydon o'lchami canvas o'lchamidan chekka bo'shliq (padPercent) ayirib olinadi.
+ *
+ * @returns {{ size: number, lines: string[], lineHeight: number,
+ *             boxW: number, boxH: number }} tanlangan o'lcham va qatorlar
+ */
+function renderTextToCanvas(canvas, {
+  text, width, height, font = 'sans', bold = true, italic = false,
+  align = 'center', padPercent = 6, lineHeight = 1.2, invert = false,
+}) {
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const family = (FONTS[font] || FONTS.sans).css;
+  const spec = (size) => `${italic ? 'italic ' : ''}${bold ? '700' : '400'} ${size}px ${family}`;
+  const measure = (t, size) => { ctx.font = spec(size); return ctx.measureText(t).width; };
+
+  const pad = (Math.min(width, height) * padPercent) / 100;
+  const boxW = Math.max(1, width - 2 * pad);
+  const boxH = Math.max(1, height - 2 * pad);
+
+  const fit = fitText({ text, boxW, boxH, lineHeight, measure });
+
+  ctx.fillStyle = invert ? '#000' : '#fff';
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = invert ? '#fff' : '#000';
+  ctx.textBaseline = 'top';
+  ctx.font = spec(fit.size);
+  ctx.textAlign = align === 'center' ? 'center' : align === 'right' ? 'right' : 'left';
+
+  const step = fit.size * lineHeight;
+  const total = fit.lines.length * step;
+  let y = (height - total) / 2;
+  const x = align === 'center' ? width / 2 : align === 'right' ? width - pad : pad;
+
+  for (const line of fit.lines) {
+    // Qator qadamining ichida harfni vertikal o'rtaga qo'yamiz
+    ctx.fillText(line, x, y + (step - fit.size) / 2);
+    y += step;
+  }
+
+  return { ...fit, lineHeight, boxW, boxH };
+}
+
 /* ===== src/layout.js ===== */
 /**
  * Qog'ozdagi joylashuvni hisoblash: qaysi ulush qayerga, qanday o'lchamda
@@ -310,8 +459,12 @@ const PAPERS = {
   Legal: { label: 'Legal — 216 × 356 mm', w: 215.9, h: 355.6 },
 };
 
-/** n ta ulush uchun eng qulay setka (ustun × qator) ni tanlaydi. */
-function bestGrid(n, pageW, pageH, marginMm, gutterMm, padMm, cellAspect) {
+/**
+ * n ta ulush uchun eng qulay setka (ustun × qator) ni tanlaydi.
+ * `fill = true` bo'lsa tasvir nisbati ahamiyatsiz (masalan matn) —
+ * shunchaki bo'sh maydoni eng katta setka tanlanadi.
+ */
+function bestGrid(n, pageW, pageH, marginMm, gutterMm, padMm, cellAspect, fill = false) {
   let best = null;
   for (let gc = 1; gc <= n; gc++) {
     const gr = Math.ceil(n / gc);
@@ -320,8 +473,8 @@ function bestGrid(n, pageW, pageH, marginMm, gutterMm, padMm, cellAspect) {
     const innerW = cellW - 2 * padMm;
     const innerH = cellH - 2 * padMm;
     if (innerW <= 5 || innerH <= 5) continue;
-    let iw = Math.min(innerW, innerH * cellAspect);
-    let ih = iw / cellAspect;
+    let iw = fill ? innerW : Math.min(innerW, innerH * cellAspect);
+    let ih = fill ? innerH : iw / cellAspect;
     const area = iw * ih;
     const waste = gc * gr - n;
     if (!best || area > best.area * 1.0001 || (Math.abs(area - best.area) <= best.area * 0.0001 && waste < best.waste)) {
@@ -386,6 +539,7 @@ function computeLayout(o) {
     marginMm = 8, gutterMm = 6, imgAspect = 1,
     blockRows = 1, blockCols = 2,
     frameGapMm = 1.5, labelMm = 4.5, maxModules = 6e6, minPixels = 12,
+    fill = false,
   } = o;
   let moduleMm = o.moduleMm ?? 0.35;
 
@@ -402,13 +556,14 @@ function computeLayout(o) {
   const pixelRatio = imgAspect / blockAspect; // pixelW / pixelH
 
   const perPage = mode === 'pages' ? 1 : n;
-  const grid = bestGrid(perPage, pageW, pageH, marginMm, gutterMm, padMm, imgAspect);
+  const grid = bestGrid(perPage, pageW, pageH, marginMm, gutterMm, padMm, imgAspect, fill);
 
   let pixelW = 0, pixelH = 0;
   for (let attempt = 0; attempt < 8; attempt++) {
     const maxPxW = Math.max(1, Math.floor(grid.innerW / moduleMm / blockCols));
     const maxPxH = Math.max(1, Math.floor(grid.innerH / moduleMm / blockRows));
-    const fit = fitPixelGrid(maxPxW, maxPxH, pixelRatio);
+    // fill: nisbatni saqlash shart emas, butun maydon ishlatiladi (matn rejimi)
+    const fit = fill ? { w: maxPxW, h: maxPxH } : fitPixelGrid(maxPxW, maxPxH, pixelRatio);
     pixelW = fit.w;
     pixelH = fit.h;
     const total = pixelW * blockCols * pixelH * blockRows;
@@ -825,10 +980,13 @@ function decodeBmp(buffer) {
 
 
 
+
 const $ = (id) => document.getElementById(id);
 const MAX_SOURCE_SIDE = 2400;
+const TEXT_CANVAS_MAX = 1800; // matn tasviri uchun maksimal tomon (px)
 
 const state = {
+  mode: 'image',     // 'image' | 'text'
   source: null,      // { rgba, width, height, aspect }
   fileName: '',
   result: null,      // { geom, layout, light, binary, n, m }
@@ -948,6 +1106,7 @@ async function loadFile(file) {
     $('drop').classList.add('has-image');
     $('change').hidden = false;
     $('fileInfo').textContent = `${file.name} — ${src.width} × ${src.height} px, ${(file.size / 1024).toFixed(0)} KB`;
+    if (state.mode !== 'image') setMode('image'); // rasm tashlandi -> rasm rejimiga o'tamiz
     $('generate').disabled = false;
     setStatus('Rasm tayyor. “Ulushlarni yaratish” tugmasini bosing.');
   } catch (err) {
@@ -976,8 +1135,49 @@ function fileFromDataTransfer(dt) {
 
 /* --------------------------------------------------------------- yaratish */
 
+/* -------------------------------------------------------- matndan tasvir */
+
+/**
+ * Matnni layout bergan bosma maydon nisbatidagi canvas ga chizadi.
+ * Keyingi qadamlar (resample + binarizatsiya) rasm rejimi bilan bir xil.
+ */
+function textSource(layout, o) {
+  const aspect = layout.imageWmm / layout.imageHmm;
+  let w = TEXT_CANVAS_MAX, h = Math.round(TEXT_CANVAS_MAX / aspect);
+  if (h > TEXT_CANVAS_MAX) { h = TEXT_CANVAS_MAX; w = Math.round(TEXT_CANVAS_MAX * aspect); }
+  // Piksel setkasidan kichik bo'lmasin (aks holda mayda detal yo'qoladi)
+  w = Math.max(w, layout.pixelW * 2);
+  h = Math.max(h, layout.pixelH * 2);
+
+  const canvas = document.createElement('canvas');
+  const fit = renderTextToCanvas(canvas, {
+    text: o.text, width: w, height: h,
+    font: o.font, bold: o.bold, align: o.align,
+    padPercent: o.padPercent, lineHeight: o.lineHeight, invert: o.textInvert,
+  });
+  const { data } = canvas.getContext('2d').getImageData(0, 0, w, h);
+  return {
+    src: { rgba: data, width: w, height: h, aspect },
+    text: {
+      fontPx: fit.size,
+      lines: fit.lines.length,
+      // harf balandligi: qog'ozdagi mm va tiklanadigan tasvirdagi piksellar
+      fontMm: (fit.size / h) * layout.imageHmm,
+      fontPixels: (fit.size / h) * layout.pixelH,
+    },
+  };
+}
+
 function readOptions() {
   return {
+    sourceKind: state.mode,
+    text: $('text').value,
+    font: $('font').value,
+    bold: $('bold').checked,
+    align: $('align').value,
+    padPercent: Number($('pad').value),
+    lineHeight: Number($('lineHeight').value),
+    textInvert: $('textInvert').checked,
     n: Number($('n').value),
     paper: $('paper').value,
     orientation: $('orientation').value,
@@ -995,27 +1195,46 @@ function readOptions() {
 }
 
 async function generate() {
-  if (!state.source) return;
   const o = readOptions();
+  if (o.sourceKind === 'text') {
+    if (!o.text.trim()) { setStatus('Avval matn yozing.', 'err'); return; }
+  } else if (!state.source) {
+    setStatus('Avval rasm yuklang.', 'err');
+    return;
+  }
   $('generate').disabled = true;
   $('reshuffle').disabled = true;
   setStatus('Hisoblanmoqda…', 'busy');
   await nextFrame();
 
   try {
+    const isText = o.sourceKind === 'text';
     const m = subpixelCount(o.n);
     const bs = blockShape(m);
     const layout = computeLayout({
       paper: o.paper, orientation: o.orientation, n: o.n, mode: o.mode,
       marginMm: o.marginMm, gutterMm: o.gutterMm, moduleMm: o.moduleMm,
-      imgAspect: state.source.aspect, blockRows: bs.rows, blockCols: bs.cols,
+      // Matn uchun nisbat cheklovi yo'q — butun bo'sh maydon ishlatiladi
+      imgAspect: isText ? 1 : state.source.aspect,
+      fill: isText,
+      blockRows: bs.rows, blockCols: bs.cols,
     });
 
-    const { binary } = prepareBinary(
-      state.source.rgba, state.source.width, state.source.height,
-      layout.pixelW, layout.pixelH,
-      { method: o.method, brightness: o.brightness, contrast: o.contrast, gamma: o.gamma, invert: o.invert, autoLevels: o.autoLevels }
-    );
+    let src, textFit = null;
+    if (isText) {
+      const t = textSource(layout, o);
+      src = t.src;
+      textFit = t.text;
+    } else {
+      src = state.source;
+    }
+
+    // Matn allaqachon qora/oq: ditheringsiz aniq chegara eng toza natija beradi
+    const prep = isText
+      ? { method: 'threshold', threshold: 0.5 }
+      : { method: o.method, brightness: o.brightness, contrast: o.contrast, gamma: o.gamma, invert: o.invert, autoLevels: o.autoLevels };
+
+    const { binary } = prepareBinary(src.rgba, src.width, src.height, layout.pixelW, layout.pixelH, prep);
 
     setStatus(`${o.n} ta ulush kodlanmoqda (${(layout.moduleCols * layout.moduleRows / 1e6).toFixed(2)} mln modul)…`, 'busy');
     await nextFrame();
@@ -1023,7 +1242,7 @@ async function generate() {
     const geom = encodeShares(binary, layout.pixelW, layout.pixelH, o.n, makeRng(state.seed));
     const light = simulateStack(geom.shares, geom);
 
-    state.result = { geom, layout, light, binary, n: o.n, m, options: o };
+    state.result = { geom, layout, light, binary, n: o.n, m, options: o, textFit };
     if (state.pdfUrl) { URL.revokeObjectURL(state.pdfUrl); state.pdfUrl = null; }
 
     render();
@@ -1038,14 +1257,27 @@ async function generate() {
 }
 
 function render() {
-  const { geom, layout, light, binary, n, m } = state.result;
+  const { geom, layout, light, binary, n, m, textFit } = state.result;
   $('empty').hidden = true;
   $('output').hidden = false;
 
   // Ogohlantirishlar
   const warns = [...layout.warnings];
-  if (n >= 5) warns.push(`n = ${n} bo'lganda o'tgan yorug'lik faqat 1/${m} — oddiy qog'ozda rasmni ko'rish juda qiyin. 2–4 tavsiya etiladi.`);
+  if (n >= 5) warns.push(`n = ${n} bo'lganda o'tgan yorug'lik faqat 1/${m} — oddiy qog'ozda tasvirni ko'rish juda qiyin. 2–4 tavsiya etiladi.`);
   if (layout.moduleMm < 0.3) warns.push('Modul 0.3 mm dan kichik: uy printerlari bunda siyohni yoyib yuborishi mumkin, bo\'laklarni moslash ham qiyin bo\'ladi.');
+  if (textFit) {
+    if (textFit.fontPixels < 9) {
+      warns.push(
+        `Harflar juda kichik chiqdi (balandligi ${textFit.fontPixels.toFixed(1)} piksel, o'qilishi uchun 9+ kerak): ` +
+        'matnni qisqartiring, modul o\'lchamini kichraytiring, kattaroq qog\'oz tanlang yoki ulushlar sonini kamaytiring.'
+      );
+    } else if (textFit.fontPixels < 14) {
+      warns.push(`Harflar chegaraviy o'lchamda (${textFit.fontPixels.toFixed(1)} piksel) — qalin shrift va kamroq matn natijani yaxshilaydi.`);
+    }
+    if (state.result.options.textInvert) {
+      warns.push('“Qora fonda oq harflar” rejimida siyoh ko\'p ketadi va fon yorug\'likni to\'sadi — natija qorong\'iroq ko\'rinadi.');
+    }
+  }
   const wbox = $('warnings');
   wbox.hidden = warns.length === 0;
   wbox.innerHTML = warns.length ? '<ul>' + warns.map((w) => `<li>${w}</li>`).join('') + '</ul>' : '';
@@ -1061,6 +1293,11 @@ function render() {
     ['Modul', `${layout.moduleMm.toFixed(2)} mm (blok ${geom.blockRows}×${geom.blockCols})`],
     ['Modullar soni', `${(layout.moduleCols * layout.moduleRows / 1e6).toFixed(2)} mln / ulush`],
   ];
+  if (textFit) {
+    rows.splice(4, 0,
+      ['Harf balandligi', `${textFit.fontMm.toFixed(1)} mm (${textFit.fontPixels.toFixed(0)} piksel)`],
+      ['Matn qatorlari', `${textFit.lines} ta`]);
+  }
   $('info').innerHTML = rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
 
   // Simulyatsiyalar.
@@ -1099,22 +1336,54 @@ function pdfBlob() {
   const { geom, layout, n, m, options } = state.result;
   const bytes = buildSheetPdf({
     shares: geom.shares, moduleCols: geom.width, moduleRows: geom.height, layout,
-    meta: { paper: options.paper, orientation: options.orientation, n, m, fileName: state.fileName },
+    meta: {
+      paper: options.paper, orientation: options.orientation, n, m,
+      fileName: options.sourceKind === 'text' ? 'matn rejimi' : state.fileName,
+    },
   });
   return new Blob([bytes], { type: 'application/pdf' });
 }
 
 function pdfName() {
   const { n, options } = state.result;
-  return `qr-amazing-${n}-ulush-${options.paper}${options.mode === 'pages' ? '-alohida' : ''}.pdf`;
+  const kind = options.sourceKind === 'text' ? '-matn' : '';
+  return `qr-amazing-${n}-ulush-${options.paper}${kind}${options.mode === 'pages' ? '-alohida' : ''}.pdf`;
 }
 
 /* --------------------------------------------------------------- ishga tushirish */
+
+/** Manba rejimini almashtirish: 'image' yoki 'text'. */
+function setMode(mode) {
+  state.mode = mode;
+  const isText = mode === 'text';
+  $('tabImage').classList.toggle('active', !isText);
+  $('tabText').classList.toggle('active', isText);
+  $('tabImage').setAttribute('aria-selected', String(!isText));
+  $('tabText').setAttribute('aria-selected', String(isText));
+  $('paneImage').hidden = isText;
+  $('paneText').hidden = !isText;
+  // Rasmga xos tuzatishlar matn rejimida ma'nosiz (matn allaqachon qora/oq)
+  $('imgAdjust').hidden = isText;
+  $('generate').disabled = isText ? !$('text').value.trim() : !state.source;
+  if (isText) $('text').focus();
+  if (state.result) setStatus('Manba o\'zgardi — “Ulushlarni yaratish” ni qayta bosing.');
+}
 
 function init() {
   // Qog'oz ro'yxati
   $('paper').innerHTML = Object.entries(PAPERS)
     .map(([k, v]) => `<option value="${k}"${k === 'A4' ? ' selected' : ''}>${v.label}</option>`).join('');
+
+  // Shrift ro'yxati
+  $('font').innerHTML = Object.entries(FONTS)
+    .map(([k, v]) => `<option value="${k}"${k === 'sans' ? ' selected' : ''}>${v.label}</option>`).join('');
+
+  // Tablar
+  $('tabImage').addEventListener('click', () => setMode('image'));
+  $('tabText').addEventListener('click', () => setMode('text'));
+  $('text').addEventListener('input', () => {
+    if (state.mode === 'text') $('generate').disabled = !$('text').value.trim();
+  });
 
   // ------------------------------------------------ fayl tanlash / tashlash
   const drop = $('drop');
@@ -1184,6 +1453,8 @@ function init() {
   bind('bright', 'brightOut', (v) => v.toFixed(2));
   bind('contrast', 'contrastOut', (v) => v.toFixed(2));
   bind('gamma', 'gammaOut', (v) => v.toFixed(2));
+  bind('pad', 'padOut', (v) => String(v));
+  bind('lineHeight', 'lhOut', (v) => v.toFixed(2));
 
   $('generate').addEventListener('click', () => generate());
   $('reshuffle').addEventListener('click', () => { state.seed = (Math.random() * 1e9) | 0; generate(); });
@@ -1219,7 +1490,9 @@ function init() {
   });
 
   // Sozlama o'zgarsa — natija eskirgani haqida eslatma
-  for (const id of ['n', 'paper', 'orientation', 'mode', 'module', 'margin', 'gutter', 'dither', 'bright', 'contrast', 'gamma', 'invert', 'autoLevels']) {
+  for (const id of ['n', 'paper', 'orientation', 'mode', 'module', 'margin', 'gutter', 'dither',
+    'bright', 'contrast', 'gamma', 'invert', 'autoLevels',
+    'font', 'align', 'bold', 'textInvert', 'pad', 'lineHeight']) {
     $(id).addEventListener('change', () => {
       if (state.result) setStatus('Sozlama o\'zgardi — “Ulushlarni yaratish” ni qayta bosing.');
     });

@@ -1,7 +1,7 @@
 # QR Amazing — rasmni QR-ga o'xshash ulushlarga bo'lish
 
-Brauzerda ishlaydigan ilova: rasm yuklanadi (**JPG / PNG / BMP**), **ulushlar soni n**
-(2 dan 8 gacha) va **qog'oz formati** (A4, A3, A5, A6, Letter, Legal) tanlanadi.
+Brauzerda ishlaydigan ilova: **rasm yuklanadi** (JPG / PNG / BMP) yoki **matn yoziladi**,
+so'ng **ulushlar soni n** (2 dan 8 gacha) va **qog'oz formati** (A4, A3, A5, A6, Letter, Legal) tanlanadi.
 Natijada tanlangan qog'ozga **n ta bir xil o'lchamdagi QR-ga o'xshash naqsh** chiqadi.
 
 Ularni chop etib, punktir chiziq bo'ylab **yirtib**, bo'laklarni **burchak belgilari bo'yicha
@@ -17,6 +17,35 @@ Bitta bo'lakning o'zi ma'nosiz shovqin: rasm faqat **barcha n ta ulush birga** b
 
 > **Eslatma:** bu naqshlar QR kodga *o'xshaydi*, lekin skaner qilinadigan haqiqiy QR kod emas.
 > Ular — vizual kriptografiya ulushlari.
+
+## Matn rejimi
+
+Rasm o'rniga to'g'ridan-to'g'ri matn yozish mumkin — **harf o'lchami matn hajmiga qarab
+avtomatik moslashadi**: matn kam bo'lsa harflar kattalashadi, ko'p bo'lsa kichrayadi,
+ya'ni qog'ozdagi bo'sh joy har doim to'liq ishlatiladi.
+
+![Matn rejimi](docs/ekran-matn.png)
+
+A4, 2 ulush, modul 0.5 mm (bitta ulush maydoni 180 × 122.5 mm) misolida o'lchangan natija:
+
+| Matn | Qatorlar | Harf balandligi |
+|---|---|---|
+| `SALOM` | 1 | **46.8 mm** (94 piksel) |
+| `Tug'ilgan kuning bilan, aziz do'stim! Omad va baxt tilaymiz.` | 4 | **19.7 mm** (39 piksel) |
+| 6 marta takrorlangan uzun jumla | 10 | **8.9 mm** (18 piksel) |
+| 120 marta takrorlangan jumla | 60+ | 3.7 mm — ilova *“harflar juda kichik”* deb ogohlantiradi |
+
+Sozlamalar: shrift (Sans / Serif / Monospace / tizim), joylashuv (markaz / chap / o'ng),
+qalin harflar, qora fonda oq harflar, chekka bo'shliq va qator oralig'i.
+`Enter` bilan qator ko'chirish saqlanadi, juda uzun so'z avtomatik bo'linadi.
+
+Matn rejimida:
+- tasvir **butun bo'sh maydonni egallaydi** (rasm rejimida esa rasmning nisbati saqlanadi);
+- binarizatsiya `dithering` emas, **aniq chegara** bilan bajariladi — harflar chetlari toza chiqadi;
+- natija o'qilishi uchun harf balandligi tiklanadigan tasvirda **9 pikseldan katta** bo'lishi kerak,
+  ilova buni tekshirib ogohlantiradi. Qalin shrift va qisqa matn eng ishonchli natija beradi.
+
+Namuna: [`docs/namuna-matn-a4.pdf`](docs/namuna-matn-a4.pdf) — “MAXFIY XABAR” matni, A4, 2 ulush.
 
 ---
 
@@ -79,7 +108,8 @@ n ortsa aniqlik ham tushadi: bir varaqda joy o'zgarmaydi, lekin bitta piksel uch
 
 | Sozlama | Nima qiladi |
 |---|---|
-| **Ulushlar soni (n)** | Rasm nechta bo'lakka bo'linadi. Hammasi kerak, biri kam bo'lsa — hech narsa ko'rinmaydi. |
+| **Manba: Rasm / Matn** | Rasm yuklash yoki matn yozish. Matnda harf o'lchami avtomatik moslashadi. |
+| **Ulushlar soni (n)** | Tasvir nechta bo'lakka bo'linadi. Hammasi kerak, biri kam bo'lsa — hech narsa ko'rinmaydi. |
 | **Qog'oz formati / yo'nalishi** | Bosma varaq o'lchami. Ulush o'lchami shundan kelib chiqib hisoblanadi. |
 | **Joylashuv** | `Bitta varaqda` — n ta ulush bitta varaqqa joylashadi va yirtib ajratiladi. `Har biri alohida varaqda` — ulushlar kattaroq chiqadi (aniqlik yuqori), lekin qirqib tenglashtirish kerak. |
 | **Modul o'lchami (mm)** | Bitta kichik kvadratning tomoni. Katta modul — qo'lda moslash oson, rasm dag'al. Kichik modul — nozik rasm, lekin siljishga juda sezgir. 0.4–0.7 mm amalda qulay. |
@@ -125,6 +155,7 @@ styles.css              Uslublar
 src/
   vc.js                 (n,n) vizual kriptografiya: matritsalar, kodlash, simulyatsiya
   image.js              kulranglash, o'lcham o'zgartirish, tuzatish, dithering
+  text.js               matnni qatorlarga bo'lish + avtomatik shrift o'lchami
   layout.js             qog'oz formatlari, setka, modul/piksel hisoblari
   pdf.js                minimal PDF generatori (1 bitli rasm, chiziq, matn)
   sheet.js              layout + ulushlar -> chop etishga tayyor PDF
@@ -135,8 +166,11 @@ dist/qr-amazing.html    serversiz ochiladigan bitta faylli versiya
 dist/qr-amazing.js      index.html uchun zaxira klassik bundle
 test/
   run-tests.mjs         yadro testlari (Node)
-  browser-e2e.js        brauzerdagi to'liq tekshiruv skripti
+  browser-e2e.js        brauzerdagi to'liq tekshiruv skripti (rasm rejimi)
+  text-e2e.js           matn rejimi: avtomatik masshtab va PDF
+  text-e2e-2.js         matn rejimi: ogohlantirishlar, shriftlar, tab almashish
   upload-debug.js       rasm yuklash yo'llarini tekshirish skripti
+  pdf-base64.js         PDF ni faylga chiqarib tekshirish uchun yordamchi
   png.mjs               testlar natijasini PNG qilib yozish
 ```
 
@@ -147,8 +181,8 @@ Tashqi kutubxona ishlatilmagan: PDF, PNG, BMP va dithering — hammasi shu repoz
 ## Testlar
 
 ```bash
-node test/run-tests.mjs   # 96 ta tekshiruv; natija tasvirlari test/out/ ichida
-node build.mjs            # dist/qr-amazing.html ni qayta yig'ish
+node test/run-tests.mjs   # 111 ta tekshiruv; natija tasvirlari test/out/ ichida
+node build.mjs            # dist/ ni qayta yig'ish
 ```
 
 Testlar quyidagilarni isbotlaydi:
@@ -161,7 +195,10 @@ Testlar quyidagilarni isbotlaydi:
   bir xil o'lchamda bo'ladi va rasm nisbati saqlanadi;
 - yaratilgan **PDF strukturasi yaroqli** (xref ofsetlari, oqim uzunliklari) va PDF ichidagi
   rasm baytlari ulush massiviga **bit darajasida mos**;
-- BMP dekoderi va rasm tayyorlash quvuri to'g'ri ishlaydi.
+- BMP dekoderi va rasm tayyorlash quvuri to'g'ri ishlaydi;
+- **matn avtomatik masshtabi**: matn ko'paysa shrift kichrayadi, maydon kattalashsa kattalashadi,
+  topilgan o'lcham har doim eng kattasi (1 px kattasi endi sig'maydi), `\n` va uzun so'zlar
+  to'g'ri ishlanadi, bo'sh yoki juda kichik maydonda ham xato bermaydi.
 
 Brauzer tekshiruvi (agent-browser yoki Playwright bilan):
 
@@ -173,4 +210,9 @@ agent-browser --session x open "file://$PWD/dist/qr-amazing.html" \
 # faqat rasm yuklash yo'llari (tugma, drag&drop, takroriy tanlash, xato fayl)
 agent-browser --session y open "file://$PWD/index.html" \
   && agent-browser --session y eval --stdin < test/upload-debug.js
+
+# matn rejimi (avtomatik masshtab, ogohlantirishlar, PDF)
+agent-browser --session z open "file://$PWD/dist/qr-amazing.html" \
+  && agent-browser --session z eval --stdin < test/text-e2e.js \
+  && agent-browser --session z eval --stdin < test/text-e2e-2.js
 ```

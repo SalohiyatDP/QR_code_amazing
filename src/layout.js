@@ -13,8 +13,12 @@ export const PAPERS = {
   Legal: { label: 'Legal — 216 × 356 mm', w: 215.9, h: 355.6 },
 };
 
-/** n ta ulush uchun eng qulay setka (ustun × qator) ni tanlaydi. */
-function bestGrid(n, pageW, pageH, marginMm, gutterMm, padMm, cellAspect) {
+/**
+ * n ta ulush uchun eng qulay setka (ustun × qator) ni tanlaydi.
+ * `fill = true` bo'lsa tasvir nisbati ahamiyatsiz (masalan matn) —
+ * shunchaki bo'sh maydoni eng katta setka tanlanadi.
+ */
+function bestGrid(n, pageW, pageH, marginMm, gutterMm, padMm, cellAspect, fill = false) {
   let best = null;
   for (let gc = 1; gc <= n; gc++) {
     const gr = Math.ceil(n / gc);
@@ -23,8 +27,8 @@ function bestGrid(n, pageW, pageH, marginMm, gutterMm, padMm, cellAspect) {
     const innerW = cellW - 2 * padMm;
     const innerH = cellH - 2 * padMm;
     if (innerW <= 5 || innerH <= 5) continue;
-    let iw = Math.min(innerW, innerH * cellAspect);
-    let ih = iw / cellAspect;
+    let iw = fill ? innerW : Math.min(innerW, innerH * cellAspect);
+    let ih = fill ? innerH : iw / cellAspect;
     const area = iw * ih;
     const waste = gc * gr - n;
     if (!best || area > best.area * 1.0001 || (Math.abs(area - best.area) <= best.area * 0.0001 && waste < best.waste)) {
@@ -89,6 +93,7 @@ export function computeLayout(o) {
     marginMm = 8, gutterMm = 6, imgAspect = 1,
     blockRows = 1, blockCols = 2,
     frameGapMm = 1.5, labelMm = 4.5, maxModules = 6e6, minPixels = 12,
+    fill = false,
   } = o;
   let moduleMm = o.moduleMm ?? 0.35;
 
@@ -105,13 +110,14 @@ export function computeLayout(o) {
   const pixelRatio = imgAspect / blockAspect; // pixelW / pixelH
 
   const perPage = mode === 'pages' ? 1 : n;
-  const grid = bestGrid(perPage, pageW, pageH, marginMm, gutterMm, padMm, imgAspect);
+  const grid = bestGrid(perPage, pageW, pageH, marginMm, gutterMm, padMm, imgAspect, fill);
 
   let pixelW = 0, pixelH = 0;
   for (let attempt = 0; attempt < 8; attempt++) {
     const maxPxW = Math.max(1, Math.floor(grid.innerW / moduleMm / blockCols));
     const maxPxH = Math.max(1, Math.floor(grid.innerH / moduleMm / blockRows));
-    const fit = fitPixelGrid(maxPxW, maxPxH, pixelRatio);
+    // fill: nisbatni saqlash shart emas, butun maydon ishlatiladi (matn rejimi)
+    const fit = fill ? { w: maxPxW, h: maxPxH } : fitPixelGrid(maxPxW, maxPxH, pixelRatio);
     pixelW = fit.w;
     pixelH = fit.h;
     const total = pixelW * blockCols * pixelH * blockRows;

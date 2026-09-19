@@ -7,12 +7,20 @@
  *
  * Ishga tushirish:  node build.mjs
  */
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
-const MODULES = ['vc.js', 'image.js', 'layout.js', 'pdf.js', 'sheet.js', 'bmp.js', 'app.js'];
+// Tartib muhim: bog'liqliklar birinchi, app.js oxirida.
+const MODULES = ['vc.js', 'image.js', 'text.js', 'layout.js', 'pdf.js', 'sheet.js', 'bmp.js', 'app.js'];
+
+// Yangi modul qo'shilib, ro'yxatga kiritilmasa — bundle jimgina buziladi.
+const onDisk = readdirSync(join(ROOT, 'src')).filter((f) => f.endsWith('.js')).sort();
+const missing = onDisk.filter((f) => !MODULES.includes(f));
+if (missing.length) {
+  throw new Error(`src/ ichidagi modullar MODULES ro'yxatiga qo'shilmagan: ${missing.join(', ')}`);
+}
 
 /** import satrlarini olib tashlab, export kalit so'zini yechadi. */
 function flatten(src, name) {
